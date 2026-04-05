@@ -11,8 +11,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
 
-option(CPP_BACKTESTER_ENABLE_DLIB "Enable future dlib-based optimization integration when dlib is available" ON)
-
 add_library(cpp_backtester_core
     src/config.cpp
     src/io.cpp
@@ -27,16 +25,9 @@ target_include_directories(cpp_backtester_core
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-if (CPP_BACKTESTER_ENABLE_DLIB)
-    find_package(dlib QUIET)
-    if (dlib_FOUND)
-        message(STATUS "dlib detected; enabling future optimizer integration hooks")
-        target_compile_definitions(cpp_backtester_core PUBLIC CPP_BACKTESTER_HAS_DLIB=1)
-        target_link_libraries(cpp_backtester_core PUBLIC dlib::dlib)
-    else()
-        message(STATUS "dlib not detected; building with placeholder optimizer backend")
-    endif()
-endif()
+find_package(dlib REQUIRED)
+target_link_libraries(cpp_backtester_core PUBLIC dlib::dlib)
+target_compile_definitions(cpp_backtester_core PUBLIC CPP_BACKTESTER_HAS_DLIB=1)
 
 find_package(Eigen3 QUIET)
 if (Eigen3_FOUND)

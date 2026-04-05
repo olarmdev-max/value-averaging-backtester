@@ -7,9 +7,9 @@ C++ backtesting/simulation project for a value-averaging style trading algorithm
 The repo now has:
 - a modular C++ core
 - a thin CLI executable
+- Nix as the required development/runtime environment
 - high-level smoke tests with 60-second max timeout per test
-- a Nix flake for reproducible development/build setup
-- a real `dlib`-backed optimization path when built through Nix
+- a real `dlib`-backed optimization path
 
 ## Key docs
 
@@ -19,32 +19,22 @@ The repo now has:
 - `docs/nix.md` — Nix usage
 - `docs/bayesian_optimization.md` — optimizer-library direction
 
-## Current scope
+## Important rule
 
-- JSON-configurable strategy settings
-- Synthetic price generation via GBM + jump diffusion
-- ATR-based parameterization instead of fixed percentages
-- Monte Carlo simulation support
-- Modular optimizer backend interface with `dlib` acceleration in Nix environments
+This repo is expected to be developed and tested **inside `nix develop`**.
+The smoke tests intentionally fail outside a Nix shell.
 
-## Build locally
-
-```bash
-cmake -S . -B build
-cmake --build build -j2
-```
-
-## Run smoke tests
-
-```bash
-python3 -m unittest tests.test_smoke -v
-```
-
-## Nix
+## Build and test
 
 ```bash
 nix develop
-nix build
+cmake -S . -B build
+cmake --build build -j2
+python3 -m unittest tests.test_smoke -v
 ```
 
-The flake is the preferred way to work on this repo because it provisions the optimizer dependency stack consistently.
+## Nix package build
+
+```bash
+nix build .#default
+```

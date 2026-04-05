@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -6,7 +7,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-BUILD_DIR = REPO_ROOT / "build-test-local"
+BUILD_DIR = REPO_ROOT / "build-test-nix"
 BINARY = BUILD_DIR / "cpp_backtester"
 TIMEOUT_SECONDS = 60
 
@@ -14,6 +15,12 @@ TIMEOUT_SECONDS = 60
 class SmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if not os.environ.get("IN_NIX_SHELL"):
+            raise AssertionError(
+                "Smoke tests must be run inside `nix develop`. "
+                "Refusing to run outside a Nix shell."
+            )
+
         subprocess.run(
             ["cmake", "-S", str(REPO_ROOT), "-B", str(BUILD_DIR)],
             check=True,
@@ -41,6 +48,9 @@ class SmokeTests(unittest.TestCase):
             shutil.rmtree(out_dir, ignore_errors=True)
             raise
 
+    def test_running_inside_nix_shell(self):
+        self.assertTrue(os.environ.get("IN_NIX_SHELL"))
+
     def test_modular_layout_smoke(self):
         expected = [
             REPO_ROOT / "include" / "cpp_backtester" / "config.hpp",
@@ -54,6 +64,8 @@ class SmokeTests(unittest.TestCase):
             REPO_ROOT / "src" / "monte_carlo.cpp",
             REPO_ROOT / "src" / "optimizer.cpp",
             REPO_ROOT / "docs" / "architecture.md",
+            REPO_ROOT / "flake.nix",
+            REPO_ROOT / "flake.lock",
         ]
         for path in expected:
             self.assertTrue(path.exists(), f"missing module file: {path}")
@@ -103,62 +115,25 @@ class SmokeTests(unittest.TestCase):
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 
-    def test_optimizer_entrypoint_smoke(self):
+    def test_optimizer_uses_real_dlib_backend(self):
         out_dir = self.run_command("optimize", "smoke_optimization.json")
         try:
-            results = json.loads((out_dir / "optimization_results.json").read_text())
-            self.assertGreater(results["evaluated_candidates"], 0)
-            self.assertIn("best_parameters", results)
-            self.assertIn("daily_target_atr", results["best_parameters"])
-            self.assertIn("long_term_target_atr", results["best_parameters"])
-            self.assertIn("optimizer_backend", results)
-            self.assertIn("dlib_available", results)
-        finally:
-            shutil.rmtree(out_dir, ignore_errors=True)
-
-    def test_nix_scaffold_smoke(self):
-        flake_path = REPO_ROOT / "flake.nix"
-        self.assertTrue(flake_path.exists(), "flake.nix should exist")
-        flake_text = flake_path.read_text()
-        self.assertIn("dlib", flake_text)
-        self.assertIn("devShells.default", flake_text)
-        self.assertIn("packages.default", flake_text)
-
-        nix_binary = shutil.which("nix")
-        if not nix_binary:
-            self.skipTest("nix is not installed in this environment")
-
-        subprocess.run(
-            [nix_binary, "flake", "show", "--no-write-lock-file", str(REPO_ROOT)],
-            check=True,
-            timeout=TIMEOUT_SECONDS,
-        )
-
-    def test_nix_dlib_optimizer_smoke(self):
-        nix_binary = shutil.which("nix")
-        if not nix_binary:
-            self.skipTest("nix is not installed in this environment")
-
-        work_dir = Path(tempfile.mkdtemp(prefix="cpp_backtester_nix_opt_"))
-        build_dir = work_dir / "build"
-        out_dir = work_dir / "out"
-        try:
-            command = (
-                f"cmake -S {REPO_ROOT} -B {build_dir} -DCPP_BACKTESTER_ENABLE_DLIB=ON && "
-                f"cmake --build {build_dir} -j2 && "
-                f"{build_dir / 'cpp_backtester'} optimize {REPO_ROOT / 'config' / 'smoke_optimization.json'} {out_dir}"
-            )
-            subprocess.run(
-                [nix_binary, "develop", "--no-write-lock-file", str(REPO_ROOT), "-c", "bash", "-lc", command],
-                check=True,
-                timeout=TIMEOUT_SECONDS,
-            )
             results = json.loads((out_dir / "optimization_results.json").read_text())
             self.assertTrue(results["dlib_available"])
             self.assertEqual(results["optimizer_backend"], "dlib_find_max_global")
             self.assertGreater(results["evaluated_candidates"], 0)
+            self.assertIn("best_parameters", results)
+            self.assertIn("daily_target_atr", results["best_parameters"])
+            self.assertIn("long_term_target_atr", results["best_parameters"])
         finally:
-            shutil.rmtree(work_dir, ignore_errors=True)
+            shutil.rmtree(out_dir, ignore_errors=True)
+
+    def test_flake_metadata_smoke(self):
+        subprocess.run(
+            ["nix", "flake", "show", "--no-write-lock-file", str(REPO_ROOT)],
+            check=True,
+            timeout=TIMEOUT_SECONDS,
+        )
 
 
 if __name__ == "__main__":

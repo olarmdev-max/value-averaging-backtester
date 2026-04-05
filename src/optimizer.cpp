@@ -3,14 +3,11 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <dlib/global_optimization.h>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <vector>
-
-#ifdef CPP_BACKTESTER_HAS_DLIB
-#include <dlib/global_optimization.h>
-#endif
 
 #include "cpp_backtester/io.hpp"
 #include "cpp_backtester/monte_carlo.hpp"
@@ -52,45 +49,6 @@ double compute_objective_score(const Config& cfg, const McAggregate& mc) {
     return mc.mean_terminal_equity;
 }
 
-#ifndef CPP_BACKTESTER_HAS_DLIB
-OptimizationResult optimize_with_grid_placeholder(const Config& cfg) {
-    const std::vector<double> long_targets{2.0, 3.0, 4.0, 5.0, 6.0};
-    const std::vector<double> daily_targets{0.5, 0.75, 1.0, 1.25, 1.5};
-    const std::vector<int> aggressiveness_values{1, 2, 3, 4};
-
-    OptimizationResult result;
-    result.backend_name = "grid-smoke-placeholder";
-    result.objective = cfg.objective;
-    result.best_score = -std::numeric_limits<double>::infinity();
-    result.best_config = cfg;
-    result.dlib_available = false;
-
-    for (double lt : long_targets) {
-        for (double dt : daily_targets) {
-            for (int aggr : aggressiveness_values) {
-                if (result.evaluated_candidates >= cfg.optimization_budget) {
-                    return result;
-                }
-
-                const Config trial = make_trial_config(cfg, lt, dt, aggr);
-                const auto mc = run_monte_carlo(trial);
-                const double score = compute_objective_score(trial, mc);
-
-                result.candidates.push_back(OptimizationCandidate{lt, dt, aggr, score});
-                ++result.evaluated_candidates;
-                if (score > result.best_score) {
-                    result.best_score = score;
-                    result.best_config = trial;
-                }
-            }
-        }
-    }
-
-    return result;
-}
-#endif
-
-#ifdef CPP_BACKTESTER_HAS_DLIB
 OptimizationResult optimize_with_dlib(const Config& cfg) {
     OptimizationResult result;
     result.backend_name = "dlib_find_max_global";
@@ -142,24 +100,15 @@ OptimizationResult optimize_with_dlib(const Config& cfg) {
 
     return result;
 }
-#endif
 
 }  // namespace
 
 bool dlib_backend_available() {
-#ifdef CPP_BACKTESTER_HAS_DLIB
     return true;
-#else
-    return false;
-#endif
 }
 
 OptimizationResult optimize_config(const Config& cfg) {
-#ifdef CPP_BACKTESTER_HAS_DLIB
     return optimize_with_dlib(cfg);
-#else
-    return optimize_with_grid_placeholder(cfg);
-#endif
 }
 
 std::string optimization_result_to_json(const OptimizationResult& result) {
