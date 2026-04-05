@@ -10,6 +10,14 @@ This project now includes a `flake.nix` with:
 
 ## Typical commands
 
+Smoke tests through the blessed entrypoint:
+
+```bash
+./scripts/test-in-nix.sh
+```
+
+Manual shell path:
+
 ```bash
 nix develop
 cmake -S . -B build

@@ -26,12 +26,24 @@ The smoke tests intentionally fail outside a Nix shell.
 
 ## Build and test
 
+Blessed test entrypoint:
+
+```bash
+./scripts/test-in-nix.sh
+```
+
+Manual path if you want the shell yourself:
+
 ```bash
 nix develop
 cmake -S . -B build
 cmake --build build -j2
 python3 -m unittest tests.test_smoke -v
 ```
+
+## CI
+
+GitHub Actions runs the same Nix-based smoke path and `nix build` on pushes/PRs.
 
 ## Nix package build
 

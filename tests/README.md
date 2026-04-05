@@ -21,6 +21,14 @@ That is intentional: it prevents drifting back into a half-configured host envir
 
 ## Run
 
+Preferred:
+
+```bash
+./scripts/test-in-nix.sh
+```
+
+Manual:
+
 ```bash
 nix develop
 python3 -m unittest tests.test_smoke -v

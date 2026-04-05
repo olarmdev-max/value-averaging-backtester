@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  nix-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Show flake metadata
+        run: nix flake show --no-write-lock-file
+
+      - name: Run smoke tests in Nix
+        run: ./scripts/test-in-nix.sh
+
+      - name: Build package with Nix
+        run: nix build .#default
