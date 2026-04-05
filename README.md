@@ -4,16 +4,47 @@ C++ backtesting/simulation project for a value-averaging style trading algorithm
 
 ## Current status
 
-Initial local repo scaffold created.
+The repo now has:
+- a modular C++ core
+- a thin CLI executable
+- high-level smoke tests with 60-second max timeout per test
+- a Nix flake for reproducible development/build setup
+- a future-ready optimizer abstraction for Bayesian optimization integration
 
-See:
+## Key docs
+
 - `docs/requirements.md` — cleaned project requirements
 - `docs/source_google_doc_raw.txt` — raw extracted text from the Google Doc
+- `docs/architecture.md` — current module layout
+- `docs/nix.md` — Nix usage
+- `docs/bayesian_optimization.md` — optimizer-library direction
 
-## Planned scope
+## Current scope
 
 - JSON-configurable strategy settings
 - Synthetic price generation via GBM + jump diffusion
 - ATR-based parameterization instead of fixed percentages
 - Monte Carlo simulation support
-- Bayesian optimization for parameter tuning
+- Modular optimizer backend interface
+
+## Build locally
+
+```bash
+cmake -S . -B build
+cmake --build build -j2
+```
+
+## Run smoke tests
+
+```bash
+python3 -m unittest tests.test_smoke -v
+```
+
+## Nix
+
+```bash
+nix develop
+nix build
+```
+
+The flake currently prepares the project around **dlib** as the practical default optimization dependency, while keeping the executable runnable before the real optimizer backend is wired in.

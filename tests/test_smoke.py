@@ -41,6 +41,23 @@ class SmokeTests(unittest.TestCase):
             shutil.rmtree(out_dir, ignore_errors=True)
             raise
 
+    def test_modular_layout_smoke(self):
+        expected = [
+            REPO_ROOT / "include" / "cpp_backtester" / "config.hpp",
+            REPO_ROOT / "include" / "cpp_backtester" / "price_generator.hpp",
+            REPO_ROOT / "include" / "cpp_backtester" / "simulator.hpp",
+            REPO_ROOT / "include" / "cpp_backtester" / "monte_carlo.hpp",
+            REPO_ROOT / "include" / "cpp_backtester" / "optimizer.hpp",
+            REPO_ROOT / "src" / "config.cpp",
+            REPO_ROOT / "src" / "price_generator.cpp",
+            REPO_ROOT / "src" / "simulator.cpp",
+            REPO_ROOT / "src" / "monte_carlo.cpp",
+            REPO_ROOT / "src" / "optimizer.cpp",
+            REPO_ROOT / "docs" / "architecture.md",
+        ]
+        for path in expected:
+            self.assertTrue(path.exists(), f"missing module file: {path}")
+
     def test_generate_prices_smoke(self):
         out_dir = self.run_command("generate", "smoke_simulation.json")
         try:
@@ -94,8 +111,28 @@ class SmokeTests(unittest.TestCase):
             self.assertIn("best_parameters", results)
             self.assertIn("daily_target_atr", results["best_parameters"])
             self.assertIn("long_term_target_atr", results["best_parameters"])
+            self.assertIn("optimizer_backend", results)
+            self.assertIn("dlib_available", results)
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
+
+    def test_nix_scaffold_smoke(self):
+        flake_path = REPO_ROOT / "flake.nix"
+        self.assertTrue(flake_path.exists(), "flake.nix should exist")
+        flake_text = flake_path.read_text()
+        self.assertIn("dlib", flake_text)
+        self.assertIn("devShells.default", flake_text)
+        self.assertIn("packages.default", flake_text)
+
+        nix_binary = shutil.which("nix")
+        if not nix_binary:
+            self.skipTest("nix is not installed in this environment")
+
+        subprocess.run(
+            [nix_binary, "flake", "show", str(REPO_ROOT)],
+            check=True,
+            timeout=TIMEOUT_SECONDS,
+        )
 
 
 if __name__ == "__main__":
