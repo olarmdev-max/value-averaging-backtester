@@ -11,34 +11,54 @@
 namespace cpp_backtester {
 namespace {
 
-double compute_return_over_drawdown_ratio(double total_return_pct, double max_drawdown_pct) {
+double compute_ratio(double numerator_pct, double max_drawdown_pct) {
     const double denominator = std::max(std::abs(max_drawdown_pct), 1e-6);
-    return total_return_pct / denominator;
+    return numerator_pct / denominator;
+}
+
+double compute_cagr_pct(double terminal_equity, double initial_cash, int num_days) {
+    if (num_days <= 0 || initial_cash <= 0.0 || terminal_equity <= 0.0) {
+        return 0.0;
+    }
+    const double years = static_cast<double>(num_days) / 252.0;
+    if (years <= 0.0) {
+        return 0.0;
+    }
+    return 100.0 * (std::pow(terminal_equity / initial_cash, 1.0 / years) - 1.0);
 }
 
 McAggregate aggregate_from_summaries(const Config& cfg, const std::vector<SimSummary>& summaries, const std::string& input_mode, int input_file_count) {
     std::vector<double> terminal_equities;
     std::vector<double> drawdowns;
+    std::vector<double> total_returns;
+    std::vector<double> cagrs;
     terminal_equities.reserve(summaries.size());
     drawdowns.reserve(summaries.size());
+    total_returns.reserve(summaries.size());
+    cagrs.reserve(summaries.size());
 
     for (const auto& summary : summaries) {
         terminal_equities.push_back(summary.terminal_equity);
         drawdowns.push_back(summary.max_drawdown);
+        total_returns.push_back(100.0 * (summary.terminal_equity - cfg.initial_cash) / std::max(1.0, cfg.initial_cash));
+        cagrs.push_back(compute_cagr_pct(summary.terminal_equity, cfg.initial_cash, summary.num_days));
     }
 
     const double mean_equity = std::accumulate(terminal_equities.begin(), terminal_equities.end(), 0.0) /
         std::max<std::size_t>(1, terminal_equities.size());
     const double mean_dd = std::accumulate(drawdowns.begin(), drawdowns.end(), 0.0) /
         std::max<std::size_t>(1, drawdowns.size());
+    const double mean_total_return_pct = std::accumulate(total_returns.begin(), total_returns.end(), 0.0) /
+        std::max<std::size_t>(1, total_returns.size());
+    const double mean_cagr_pct = std::accumulate(cagrs.begin(), cagrs.end(), 0.0) /
+        std::max<std::size_t>(1, cagrs.size());
     const auto [min_it, max_it] = std::minmax_element(terminal_equities.begin(), terminal_equities.end());
     const int positives = static_cast<int>(std::count_if(terminal_equities.begin(), terminal_equities.end(), [&](double x) {
         return x > cfg.initial_cash;
     }));
 
-    const double mean_total_return_pct = 100.0 * (mean_equity - cfg.initial_cash) / std::max(1.0, cfg.initial_cash);
     const double mean_max_drawdown_pct = 100.0 * std::abs(mean_dd);
-    const double return_over_drawdown_ratio = compute_return_over_drawdown_ratio(mean_total_return_pct, mean_max_drawdown_pct);
+    const double cagr_over_drawdown_ratio = compute_ratio(mean_cagr_pct, mean_max_drawdown_pct);
 
     McAggregate aggregate{
         static_cast<int>(summaries.size()),
@@ -48,8 +68,9 @@ McAggregate aggregate_from_summaries(const Config& cfg, const std::vector<SimSum
         mean_dd,
         summaries.empty() ? 0.0 : static_cast<double>(positives) / static_cast<double>(summaries.size()),
         mean_total_return_pct,
+        mean_cagr_pct,
         mean_max_drawdown_pct,
-        return_over_drawdown_ratio,
+        cagr_over_drawdown_ratio,
         input_mode,
         input_file_count,
     };
@@ -95,8 +116,9 @@ std::string monte_carlo_to_json(const Config& cfg, const McAggregate& mc) {
     os << "  \"mean_max_drawdown\": " << mc.mean_max_drawdown << ",\n";
     os << "  \"positive_run_ratio\": " << mc.positive_run_ratio << ",\n";
     os << "  \"mean_total_return_pct\": " << mc.mean_total_return_pct << ",\n";
+    os << "  \"mean_cagr_pct\": " << mc.mean_cagr_pct << ",\n";
     os << "  \"mean_max_drawdown_pct\": " << mc.mean_max_drawdown_pct << ",\n";
-    os << "  \"return_over_drawdown_ratio\": " << mc.return_over_drawdown_ratio << ",\n";
+    os << "  \"cagr_over_drawdown_ratio\": " << mc.cagr_over_drawdown_ratio << ",\n";
     os << "  \"used_atr_thresholds\": true,\n";
     os << "  \"used_jump_diffusion\": " << (mc.input_mode == "synthetic_monte_carlo" ? "true" : "false") << "\n";
     os << "}\n";

@@ -26,12 +26,16 @@ def main() -> int:
         raise SystemExit(f"No Yahoo data returned for {args.ticker}")
 
     close = df["Close"]
+    if hasattr(close, "columns"):
+        close = close.iloc[:, 0]
+    close = close.dropna()
+
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["close"])
-        for value in close.tolist():
+        for value in close.to_list():
             writer.writerow([f"{float(value):.6f}"])
 
     print(out_path)

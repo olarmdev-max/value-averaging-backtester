@@ -132,8 +132,9 @@ class SmokeTests(unittest.TestCase):
             self.assertEqual(aggregate["num_simulations_completed"], 500)
             self.assertEqual(aggregate["input_mode"], "synthetic_monte_carlo")
             self.assertIn("mean_total_return_pct", aggregate)
+            self.assertIn("mean_cagr_pct", aggregate)
             self.assertIn("mean_max_drawdown_pct", aggregate)
-            self.assertIn("return_over_drawdown_ratio", aggregate)
+            self.assertIn("cagr_over_drawdown_ratio", aggregate)
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 
@@ -143,7 +144,7 @@ class SmokeTests(unittest.TestCase):
             results = json.loads((out_dir / "optimization_results.json").read_text())
             self.assertTrue(results["dlib_available"])
             self.assertEqual(results["optimizer_backend"], "dlib_find_max_global")
-            self.assertEqual(results["objective_name"], "mean_total_return_pct / mean_max_drawdown_pct")
+            self.assertEqual(results["objective_name"], "mean_cagr_pct / mean_max_drawdown_pct")
             self.assertEqual(results["input_mode"], "synthetic_monte_carlo")
             self.assertEqual(results["requested_evaluations"], 100)
             self.assertEqual(results["monte_carlo_sims_per_evaluation"], 500)
@@ -152,6 +153,7 @@ class SmokeTests(unittest.TestCase):
                 results["total_monte_carlo_simulations_completed"],
                 results["evaluated_candidates"] * 500,
             )
+            self.assertIn("best_mean_cagr_pct", results)
             self.assertIn("best_parameters", results)
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)

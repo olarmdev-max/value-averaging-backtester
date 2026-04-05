@@ -100,8 +100,9 @@ struct McAggregate {
     double mean_max_drawdown = 0.0;
     double positive_run_ratio = 0.0;
     double mean_total_return_pct = 0.0;
+    double mean_cagr_pct = 0.0;
     double mean_max_drawdown_pct = 0.0;
-    double return_over_drawdown_ratio = 0.0;
+    double cagr_over_drawdown_ratio = 0.0;
     std::string input_mode = "synthetic_monte_carlo";
     int input_file_count = 0;
 };
@@ -128,6 +129,7 @@ struct OptimizationResult {
     double elapsed_seconds = 0.0;
     double best_score = 0.0;
     double best_mean_total_return_pct = 0.0;
+    double best_mean_cagr_pct = 0.0;
     double best_mean_max_drawdown_pct = 0.0;
     Config best_config;
     std::vector<OptimizationCandidate> candidates;

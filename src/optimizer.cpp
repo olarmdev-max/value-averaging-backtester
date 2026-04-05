@@ -21,7 +21,7 @@ constexpr double kDailyTargetLower = 0.25;
 constexpr double kDailyTargetUpper = 3.0;
 constexpr int kAggressivenessLower = 1;
 constexpr int kAggressivenessUpper = 4;
-constexpr const char* kObjectiveName = "mean_total_return_pct / mean_max_drawdown_pct";
+constexpr const char* kObjectiveName = "mean_cagr_pct / mean_max_drawdown_pct";
 
 Config make_trial_config(const Config& base, double long_term_target_atr, double daily_target_atr, int aggressiveness) {
     Config trial = base;
@@ -54,7 +54,7 @@ OptimizationResult optimize_with_dlib(const Config& cfg, const std::vector<Price
 
         const Config trial = make_trial_config(cfg, clamped_lt, clamped_dt, aggressiveness);
         const auto mc = input_series.empty() ? run_monte_carlo(trial) : run_price_series_batch(trial, input_series);
-        const double score = mc.return_over_drawdown_ratio;
+        const double score = mc.cagr_over_drawdown_ratio;
 
         result.candidates.push_back(OptimizationCandidate{clamped_lt, clamped_dt, aggressiveness, score});
         ++result.evaluated_candidates;
@@ -64,6 +64,7 @@ OptimizationResult optimize_with_dlib(const Config& cfg, const std::vector<Price
             result.best_score = score;
             result.best_config = trial;
             result.best_mean_total_return_pct = mc.mean_total_return_pct;
+            result.best_mean_cagr_pct = mc.mean_cagr_pct;
             result.best_mean_max_drawdown_pct = mc.mean_max_drawdown_pct;
         }
         return score;
@@ -133,6 +134,7 @@ std::string optimization_result_to_json(const OptimizationResult& result) {
     os << "  \"completed_requested_evaluations\": " << (result.completed_requested_evaluations ? "true" : "false") << ",\n";
     os << "  \"best_score\": " << result.best_score << ",\n";
     os << "  \"best_mean_total_return_pct\": " << result.best_mean_total_return_pct << ",\n";
+    os << "  \"best_mean_cagr_pct\": " << result.best_mean_cagr_pct << ",\n";
     os << "  \"best_mean_max_drawdown_pct\": " << result.best_mean_max_drawdown_pct << ",\n";
     os << "  \"best_parameters\": {\n";
     os << "    \"long_term_target_atr\": " << result.best_config.long_term_target_atr << ",\n";
