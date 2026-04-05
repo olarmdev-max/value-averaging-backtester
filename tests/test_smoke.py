@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-BUILD_DIR = REPO_ROOT / "build"
+BUILD_DIR = REPO_ROOT / "build-test-local"
 BINARY = BUILD_DIR / "cpp_backtester"
 TIMEOUT_SECONDS = 60
 
@@ -129,10 +129,36 @@ class SmokeTests(unittest.TestCase):
             self.skipTest("nix is not installed in this environment")
 
         subprocess.run(
-            [nix_binary, "flake", "show", str(REPO_ROOT)],
+            [nix_binary, "flake", "show", "--no-write-lock-file", str(REPO_ROOT)],
             check=True,
             timeout=TIMEOUT_SECONDS,
         )
+
+    def test_nix_dlib_optimizer_smoke(self):
+        nix_binary = shutil.which("nix")
+        if not nix_binary:
+            self.skipTest("nix is not installed in this environment")
+
+        work_dir = Path(tempfile.mkdtemp(prefix="cpp_backtester_nix_opt_"))
+        build_dir = work_dir / "build"
+        out_dir = work_dir / "out"
+        try:
+            command = (
+                f"cmake -S {REPO_ROOT} -B {build_dir} -DCPP_BACKTESTER_ENABLE_DLIB=ON && "
+                f"cmake --build {build_dir} -j2 && "
+                f"{build_dir / 'cpp_backtester'} optimize {REPO_ROOT / 'config' / 'smoke_optimization.json'} {out_dir}"
+            )
+            subprocess.run(
+                [nix_binary, "develop", "--no-write-lock-file", str(REPO_ROOT), "-c", "bash", "-lc", command],
+                check=True,
+                timeout=TIMEOUT_SECONDS,
+            )
+            results = json.loads((out_dir / "optimization_results.json").read_text())
+            self.assertTrue(results["dlib_available"])
+            self.assertEqual(results["optimizer_backend"], "dlib_find_max_global")
+            self.assertGreater(results["evaluated_candidates"], 0)
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

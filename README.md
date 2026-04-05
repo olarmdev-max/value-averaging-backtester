@@ -9,7 +9,7 @@ The repo now has:
 - a thin CLI executable
 - high-level smoke tests with 60-second max timeout per test
 - a Nix flake for reproducible development/build setup
-- a future-ready optimizer abstraction for Bayesian optimization integration
+- a real `dlib`-backed optimization path when built through Nix
 
 ## Key docs
 
@@ -25,7 +25,7 @@ The repo now has:
 - Synthetic price generation via GBM + jump diffusion
 - ATR-based parameterization instead of fixed percentages
 - Monte Carlo simulation support
-- Modular optimizer backend interface
+- Modular optimizer backend interface with `dlib` acceleration in Nix environments
 
 ## Build locally
 
@@ -47,4 +47,4 @@ nix develop
 nix build
 ```
 
-The flake currently prepares the project around **dlib** as the practical default optimization dependency, while keeping the executable runnable before the real optimizer backend is wired in.
+The flake is the preferred way to work on this repo because it provisions the optimizer dependency stack consistently.

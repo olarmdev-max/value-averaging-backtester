@@ -13,6 +13,7 @@ These are high-level smoke tests for the current vertical slice of the project.
   - Monte Carlo execution
   - optimizer entrypoint metadata
   - Nix scaffold presence
+  - real `dlib` optimizer activation when run through Nix
 
 ## Run
 
@@ -22,5 +23,6 @@ python3 -m unittest tests.test_smoke -v
 
 ## Nix note
 
-If `nix` is installed, the suite also performs a lightweight `nix flake show` smoke check.
-If `nix` is not installed, that check is skipped rather than failing the whole suite.
+If `nix` is installed, the suite also performs:
+- `nix flake show --no-write-lock-file`
+- a Nix-shell build/run that verifies the optimizer backend switches to `dlib_find_max_global`

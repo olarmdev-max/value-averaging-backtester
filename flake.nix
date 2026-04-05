@@ -20,20 +20,6 @@
           buildInputs = with pkgs; [ dlib eigen python3 ];
 
           cmakeFlags = [ "-DCPP_BACKTESTER_ENABLE_DLIB=ON" ];
-
-          buildPhase = ''
-            runHook preBuild
-            cmake -S . -B build -G Ninja $cmakeFlags
-            cmake --build build -j2
-            runHook postBuild
-          '';
-
-          installPhase = ''
-            runHook preInstall
-            mkdir -p $out/bin
-            cp build/cpp_backtester $out/bin/
-            runHook postInstall
-          '';
         };
 
         devShells.default = pkgs.mkShell {

@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(GNUInstallDirs)
+
 option(CPP_BACKTESTER_ENABLE_DLIB "Enable future dlib-based optimization integration when dlib is available" ON)
 
 add_library(cpp_backtester_core
@@ -47,3 +49,7 @@ endif()
 
 add_executable(cpp_backtester src/main.cpp)
 target_link_libraries(cpp_backtester PRIVATE cpp_backtester_core)
+
+install(TARGETS cpp_backtester
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
