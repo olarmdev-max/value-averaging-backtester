@@ -45,6 +45,12 @@ struct PriceBar {
     bool jump_applied = false;
 };
 
+struct PriceSeries {
+    std::string name;
+    std::string source_path;
+    std::vector<PriceBar> bars;
+};
+
 struct TradeRow {
     int day = 0;
     std::string action;
@@ -96,6 +102,8 @@ struct McAggregate {
     double mean_total_return_pct = 0.0;
     double mean_max_drawdown_pct = 0.0;
     double return_over_drawdown_ratio = 0.0;
+    std::string input_mode = "synthetic_monte_carlo";
+    int input_file_count = 0;
 };
 
 struct OptimizationCandidate {
@@ -108,13 +116,19 @@ struct OptimizationCandidate {
 struct OptimizationResult {
     std::string backend_name;
     std::string objective_name;
+    std::string input_mode = "synthetic_monte_carlo";
+    int input_file_count = 0;
     int requested_evaluations = 0;
     int evaluated_candidates = 0;
     int monte_carlo_sims_per_evaluation = 0;
     int total_monte_carlo_simulations_completed = 0;
+    int price_files_per_evaluation = 0;
+    int total_price_file_evaluations_completed = 0;
     double time_budget_seconds = 0.0;
     double elapsed_seconds = 0.0;
     double best_score = 0.0;
+    double best_mean_total_return_pct = 0.0;
+    double best_mean_max_drawdown_pct = 0.0;
     Config best_config;
     std::vector<OptimizationCandidate> candidates;
     bool dlib_available = false;

@@ -15,6 +15,7 @@ That is intentional: it prevents drifting back into a half-configured host envir
   - synthetic GBM + jump-diffusion generation
   - ATR-based strategy thresholds
   - simulation outputs
+  - deterministic file-backed input mode
   - Monte Carlo execution
   - real `dlib` optimizer activation
   - flake metadata

@@ -23,6 +23,7 @@ The repo now has:
 - `docs/architecture.md` — current module layout
 - `docs/nix.md` — Nix usage
 - `docs/bayesian_optimization.md` — optimizer-library direction
+- `docs/price_file_schema.md` — close-only CSV input schema
 
 ## Important rule
 
@@ -44,6 +45,30 @@ nix develop
 cmake -S . -B build
 cmake --build build -j2
 python3 -m unittest tests.test_smoke -v
+```
+
+## File-backed input mode
+
+You can now pass one or more close-only CSV files directly on the command line:
+
+```bash
+nix develop -c ./build-test-nix/cpp_backtester simulate config/smoke_simulation.json out data/SPY.csv
+nix develop -c ./build-test-nix/cpp_backtester optimize config/optimization_30s.json out data/SPY.csv data/QQQ.csv
+```
+
+Schema is documented in `docs/price_file_schema.md`.
+
+## Helper scripts
+
+- `scripts/generate_synthetic_close_series.py` — create a close-only CSV from GBM + jump diffusion
+- `scripts/download_yahoo.py` — download a close-only CSV from Yahoo Finance (for example `SPY`)
+
+Example:
+
+```bash
+nix develop
+python3 scripts/download_yahoo.py SPY data/SPY.csv --start 2020-01-01
+./build-test-nix/cpp_backtester optimize config/optimization_30s.json out data/SPY.csv
 ```
 
 ## CI

@@ -7,6 +7,7 @@ This project now includes a `flake.nix` with:
 - Python for the smoke tests
 - `dlib` as the practical default optimization dependency
 - Eigen for future numerical/optimization work
+- `yfinance` available in the dev shell for downloading close-only test data
 
 ## Typical commands
 

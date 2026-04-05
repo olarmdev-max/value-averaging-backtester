@@ -15,6 +15,7 @@ add_library(cpp_backtester_core
     src/config.cpp
     src/io.cpp
     src/price_generator.cpp
+    src/price_loader.cpp
     src/simulator.cpp
     src/monte_carlo.cpp
     src/optimizer.cpp

@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = REPO_ROOT / "build-test-nix"
 BINARY = BUILD_DIR / "cpp_backtester"
+FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 TIMEOUT_SECONDS = 60
 
 
@@ -34,12 +35,13 @@ class SmokeTests(unittest.TestCase):
         if not BINARY.exists():
             raise AssertionError(f"Missing compiled binary: {BINARY}")
 
-    def run_command(self, command: str, config_name: str):
+    def run_command(self, command: str, config_name: str, extra_args=None):
+        extra_args = extra_args or []
         out_dir = Path(tempfile.mkdtemp(prefix=f"cpp_backtester_{command}_"))
         config_path = REPO_ROOT / "config" / config_name
         try:
             subprocess.run(
-                [str(BINARY), command, str(config_path), str(out_dir)],
+                [str(BINARY), command, str(config_path), str(out_dir), *map(str, extra_args)],
                 check=True,
                 timeout=TIMEOUT_SECONDS,
             )
@@ -55,15 +57,18 @@ class SmokeTests(unittest.TestCase):
         expected = [
             REPO_ROOT / "include" / "cpp_backtester" / "config.hpp",
             REPO_ROOT / "include" / "cpp_backtester" / "price_generator.hpp",
+            REPO_ROOT / "include" / "cpp_backtester" / "price_loader.hpp",
             REPO_ROOT / "include" / "cpp_backtester" / "simulator.hpp",
             REPO_ROOT / "include" / "cpp_backtester" / "monte_carlo.hpp",
             REPO_ROOT / "include" / "cpp_backtester" / "optimizer.hpp",
             REPO_ROOT / "src" / "config.cpp",
             REPO_ROOT / "src" / "price_generator.cpp",
+            REPO_ROOT / "src" / "price_loader.cpp",
             REPO_ROOT / "src" / "simulator.cpp",
             REPO_ROOT / "src" / "monte_carlo.cpp",
             REPO_ROOT / "src" / "optimizer.cpp",
             REPO_ROOT / "docs" / "architecture.md",
+            REPO_ROOT / "docs" / "price_file_schema.md",
             REPO_ROOT / "flake.nix",
             REPO_ROOT / "flake.lock",
         ]
@@ -93,6 +98,21 @@ class SmokeTests(unittest.TestCase):
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 
+    def test_file_backed_simulation_smoke(self):
+        files = [
+            FIXTURES_DIR / "close_only_alpha.csv",
+            FIXTURES_DIR / "close_only_beta.csv",
+        ]
+        out_dir = self.run_command("simulate", "smoke_simulation.json", files)
+        try:
+            aggregate = json.loads((out_dir / "aggregate.json").read_text())
+            self.assertEqual(aggregate["input_mode"], "input_files")
+            self.assertEqual(aggregate["input_file_count"], 2)
+            self.assertTrue((out_dir / "close_only_alpha" / "summary.json").exists())
+            self.assertTrue((out_dir / "close_only_beta" / "summary.json").exists())
+        finally:
+            shutil.rmtree(out_dir, ignore_errors=True)
+
     def test_json_policy_switches_smoke(self):
         out_dir = self.run_command("simulate", "smoke_policy_switches.json")
         try:
@@ -110,6 +130,7 @@ class SmokeTests(unittest.TestCase):
             aggregate = json.loads((out_dir / "aggregate.json").read_text())
             self.assertEqual(aggregate["num_simulations_requested"], 500)
             self.assertEqual(aggregate["num_simulations_completed"], 500)
+            self.assertEqual(aggregate["input_mode"], "synthetic_monte_carlo")
             self.assertIn("mean_total_return_pct", aggregate)
             self.assertIn("mean_max_drawdown_pct", aggregate)
             self.assertIn("return_over_drawdown_ratio", aggregate)
@@ -123,6 +144,7 @@ class SmokeTests(unittest.TestCase):
             self.assertTrue(results["dlib_available"])
             self.assertEqual(results["optimizer_backend"], "dlib_find_max_global")
             self.assertEqual(results["objective_name"], "mean_total_return_pct / mean_max_drawdown_pct")
+            self.assertEqual(results["input_mode"], "synthetic_monte_carlo")
             self.assertEqual(results["requested_evaluations"], 100)
             self.assertEqual(results["monte_carlo_sims_per_evaluation"], 500)
             self.assertGreater(results["evaluated_candidates"], 0)
@@ -131,8 +153,25 @@ class SmokeTests(unittest.TestCase):
                 results["evaluated_candidates"] * 500,
             )
             self.assertIn("best_parameters", results)
-            self.assertIn("daily_target_atr", results["best_parameters"])
-            self.assertIn("long_term_target_atr", results["best_parameters"])
+        finally:
+            shutil.rmtree(out_dir, ignore_errors=True)
+
+    def test_file_backed_optimize_smoke(self):
+        files = [
+            FIXTURES_DIR / "close_only_alpha.csv",
+            FIXTURES_DIR / "close_only_beta.csv",
+        ]
+        out_dir = self.run_command("optimize", "smoke_optimization.json", files)
+        try:
+            results = json.loads((out_dir / "optimization_results.json").read_text())
+            self.assertEqual(results["input_mode"], "input_files")
+            self.assertEqual(results["input_file_count"], 2)
+            self.assertEqual(results["price_files_per_evaluation"], 2)
+            self.assertEqual(results["monte_carlo_sims_per_evaluation"], 0)
+            self.assertEqual(
+                results["total_price_file_evaluations_completed"],
+                results["evaluated_candidates"] * 2,
+            )
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 

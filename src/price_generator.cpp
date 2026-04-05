@@ -11,16 +11,48 @@
 
 namespace cpp_backtester {
 
+std::vector<PriceBar> build_bars_from_closes(const std::vector<double>& closes, int atr_window) {
+    std::vector<PriceBar> bars;
+    std::vector<double> true_ranges;
+    bars.reserve(closes.size());
+    true_ranges.reserve(closes.size());
+
+    if (closes.empty()) {
+        return bars;
+    }
+
+    double prev_close = closes.front();
+    for (std::size_t i = 0; i < closes.size(); ++i) {
+        const double close = std::max(closes[i], 0.01);
+        const double open = (i == 0) ? close : prev_close;
+        const double high = std::max(open, close);
+        const double low = std::min(open, close);
+        const double tr = std::max({high - low, std::abs(high - prev_close), std::abs(low - prev_close)});
+        true_ranges.push_back(tr);
+
+        const int start = std::max(0, static_cast<int>(true_ranges.size()) - atr_window);
+        double atr = 0.0;
+        for (int j = start; j < static_cast<int>(true_ranges.size()); ++j) {
+            atr += true_ranges[static_cast<std::size_t>(j)];
+        }
+        atr /= static_cast<double>(true_ranges.size() - static_cast<std::size_t>(start));
+
+        bars.push_back(PriceBar{static_cast<int>(i) + 1, open, high, low, close, atr, false});
+        prev_close = close;
+    }
+    return bars;
+}
+
 std::vector<PriceBar> generate_prices(const Config& cfg, int seed_offset) {
     std::mt19937_64 rng(static_cast<std::uint64_t>(cfg.seed + seed_offset * 7919));
     std::normal_distribution<double> normal(0.0, 1.0);
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
     const double dt = 1.0 / 252.0;
-    std::vector<PriceBar> bars;
-    std::vector<double> true_ranges;
-    bars.reserve(static_cast<std::size_t>(cfg.num_days));
-    true_ranges.reserve(static_cast<std::size_t>(cfg.num_days));
+    std::vector<double> closes;
+    std::vector<bool> jumps;
+    closes.reserve(static_cast<std::size_t>(cfg.num_days));
+    jumps.reserve(static_cast<std::size_t>(cfg.num_days));
 
     double prev_close = cfg.start_price;
     for (int i = 0; i < cfg.num_days; ++i) {
@@ -30,23 +62,14 @@ std::vector<PriceBar> generate_prices(const Config& cfg, int seed_offset) {
         const double jump_term = jump ? (cfg.jump_mean + cfg.jump_std * normal(rng)) : 0.0;
         double close = open * std::exp(diffusion + jump_term);
         close = std::max(close, 0.01);
-
-        const double spread = 0.005 + 0.01 * std::abs(normal(rng)) + 0.15 * std::abs(jump_term);
-        const double high = std::max(open, close) * (1.0 + spread);
-        const double low = std::max(0.01, std::min(open, close) * (1.0 - spread));
-
-        const double tr = std::max({high - low, std::abs(high - prev_close), std::abs(low - prev_close)});
-        true_ranges.push_back(tr);
-
-        const int start = std::max(0, static_cast<int>(true_ranges.size()) - cfg.atr_window);
-        double atr = 0.0;
-        for (int j = start; j < static_cast<int>(true_ranges.size()); ++j) {
-            atr += true_ranges[static_cast<std::size_t>(j)];
-        }
-        atr /= static_cast<double>(true_ranges.size() - static_cast<std::size_t>(start));
-
-        bars.push_back(PriceBar{i + 1, open, high, low, close, atr, jump});
+        closes.push_back(close);
+        jumps.push_back(jump);
         prev_close = close;
+    }
+
+    auto bars = build_bars_from_closes(closes, cfg.atr_window);
+    for (std::size_t i = 0; i < bars.size(); ++i) {
+        bars[i].jump_applied = jumps[i];
     }
     return bars;
 }

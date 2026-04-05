@@ -10,6 +10,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        pythonEnv = pkgs.python3.withPackages (ps: [ ps.yfinance ]);
       in {
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "cpp-backtester";
@@ -29,16 +30,17 @@
             pkg-config
             gcc
             gdb
-            python3
             dlib
             eigen
             clang-tools
+            pythonEnv
           ];
 
           shellHook = ''
             export CMAKE_EXPORT_COMPILE_COMMANDS=1
             echo "cpp-backtester dev shell loaded"
             echo "dlib available through nix shell"
+            echo "python has yfinance available in this shell"
           '';
         };
       });
