@@ -19,12 +19,18 @@ There is no placeholder optimizer backend anymore.
 - `daily_target_atr`
 - `aggressiveness`
 
-## Supported objectives
+## Fixed objective
 
-- `mean_terminal_equity`
-- `positive_run_ratio`
-- `drawdown_penalized_equity`
-- `risk_adjusted_return`
+There is now only one optimizer objective:
+
+- `mean_total_return_pct / mean_max_drawdown_pct`
+
+Interpretation:
+- total return is measured as the mean Monte Carlo return percentage versus initial capital
+- drawdown is measured as the mean Monte Carlo maximum drawdown percentage magnitude
+- the optimizer maximizes their ratio
+
+This keeps the tuning target single-purpose instead of letting multiple competing objective functions drift the search.
 
 ## Environment assumption
 

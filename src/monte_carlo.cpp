@@ -1,6 +1,7 @@
 #include "cpp_backtester/monte_carlo.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <numeric>
 #include <vector>
 
@@ -8,6 +9,14 @@
 #include "cpp_backtester/simulator.hpp"
 
 namespace cpp_backtester {
+namespace {
+
+double compute_return_over_drawdown_ratio(double total_return_pct, double max_drawdown_pct) {
+    const double denominator = std::max(std::abs(max_drawdown_pct), 1e-6);
+    return total_return_pct / denominator;
+}
+
+}  // namespace
 
 McAggregate run_monte_carlo(const Config& cfg) {
     std::vector<double> terminal_equities;
@@ -31,6 +40,10 @@ McAggregate run_monte_carlo(const Config& cfg) {
         return x > cfg.initial_cash;
     }));
 
+    const double mean_total_return_pct = 100.0 * (mean_equity - cfg.initial_cash) / std::max(1.0, cfg.initial_cash);
+    const double mean_max_drawdown_pct = 100.0 * std::abs(mean_dd);
+    const double return_over_drawdown_ratio = compute_return_over_drawdown_ratio(mean_total_return_pct, mean_max_drawdown_pct);
+
     return McAggregate{
         cfg.num_simulations,
         mean_equity,
@@ -38,6 +51,9 @@ McAggregate run_monte_carlo(const Config& cfg) {
         terminal_equities.empty() ? 0.0 : *max_it,
         mean_dd,
         cfg.num_simulations > 0 ? static_cast<double>(positives) / static_cast<double>(cfg.num_simulations) : 0.0,
+        mean_total_return_pct,
+        mean_max_drawdown_pct,
+        return_over_drawdown_ratio,
     };
 }
 
@@ -52,6 +68,9 @@ std::string monte_carlo_to_json(const Config& cfg, const McAggregate& mc) {
     os << "  \"max_terminal_equity\": " << mc.max_terminal_equity << ",\n";
     os << "  \"mean_max_drawdown\": " << mc.mean_max_drawdown << ",\n";
     os << "  \"positive_run_ratio\": " << mc.positive_run_ratio << ",\n";
+    os << "  \"mean_total_return_pct\": " << mc.mean_total_return_pct << ",\n";
+    os << "  \"mean_max_drawdown_pct\": " << mc.mean_max_drawdown_pct << ",\n";
+    os << "  \"return_over_drawdown_ratio\": " << mc.return_over_drawdown_ratio << ",\n";
     os << "  \"used_jump_diffusion\": true,\n";
     os << "  \"used_atr_thresholds\": true\n";
     os << "}\n";

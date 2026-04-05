@@ -1,6 +1,6 @@
 {
   "seed": 404,
-  "num_days": 48,
+  "num_days": 20,
   "atr_window": 14,
   "start_price": 100.0,
   "mu": 0.11,
@@ -21,8 +21,7 @@
   "one_buy_per_day_only": true,
   "fully_utilized_mode": "wait",
   "gap_handling_mode": "single_buy",
-  "num_simulations": 32,
-  "optimization_budget": 12,
-  "optimization_mc_sims": 24,
-  "objective": "mean_terminal_equity"
+  "num_simulations": 500,
+  "optimization_budget": 100,
+  "optimization_time_budget_seconds": 2.0
 }

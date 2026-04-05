@@ -21,41 +21,28 @@ constexpr double kDailyTargetLower = 0.25;
 constexpr double kDailyTargetUpper = 3.0;
 constexpr int kAggressivenessLower = 1;
 constexpr int kAggressivenessUpper = 4;
+constexpr const char* kObjectiveName = "mean_total_return_pct / mean_max_drawdown_pct";
 
 Config make_trial_config(const Config& base, double long_term_target_atr, double daily_target_atr, int aggressiveness) {
     Config trial = base;
     trial.long_term_target_atr = long_term_target_atr;
     trial.daily_target_atr = daily_target_atr;
     trial.aggressiveness = aggressiveness;
-    trial.num_simulations = base.optimization_mc_sims;
     return trial;
-}
-
-double compute_objective_score(const Config& cfg, const McAggregate& mc) {
-    if (cfg.objective == "positive_run_ratio") {
-        return mc.positive_run_ratio;
-    }
-
-    if (cfg.objective == "drawdown_penalized_equity") {
-        const double penalty = std::max(0.0, 1.0 + mc.mean_max_drawdown);
-        return mc.mean_terminal_equity * penalty;
-    }
-
-    if (cfg.objective == "risk_adjusted_return") {
-        const double normalized_return = (mc.mean_terminal_equity - cfg.initial_cash) / std::max(1.0, cfg.initial_cash);
-        return normalized_return / (1.0 + std::abs(mc.mean_max_drawdown));
-    }
-
-    return mc.mean_terminal_equity;
 }
 
 OptimizationResult optimize_with_dlib(const Config& cfg) {
     OptimizationResult result;
     result.backend_name = "dlib_find_max_global";
-    result.objective = cfg.objective;
+    result.objective_name = kObjectiveName;
+    result.requested_evaluations = std::max(1, cfg.optimization_budget);
+    result.monte_carlo_sims_per_evaluation = std::max(1, cfg.num_simulations);
+    result.time_budget_seconds = std::max(0.001, cfg.optimization_time_budget_seconds);
     result.best_score = -std::numeric_limits<double>::infinity();
     result.best_config = cfg;
     result.dlib_available = true;
+
+    const auto started_at = std::chrono::steady_clock::now();
 
     auto objective = [&](double long_term_target_atr, double daily_target_atr, double aggressiveness_continuous) {
         const double clamped_lt = std::clamp(long_term_target_atr, kLongTermTargetLower, kLongTermTargetUpper);
@@ -64,10 +51,11 @@ OptimizationResult optimize_with_dlib(const Config& cfg) {
 
         const Config trial = make_trial_config(cfg, clamped_lt, clamped_dt, aggressiveness);
         const auto mc = run_monte_carlo(trial);
-        const double score = compute_objective_score(trial, mc);
+        const double score = mc.return_over_drawdown_ratio;
 
         result.candidates.push_back(OptimizationCandidate{clamped_lt, clamped_dt, aggressiveness, score});
         ++result.evaluated_candidates;
+        result.total_monte_carlo_simulations_completed = result.evaluated_candidates * result.monte_carlo_sims_per_evaluation;
         if (score > result.best_score) {
             result.best_score = score;
             result.best_config = trial;
@@ -81,14 +69,21 @@ OptimizationResult optimize_with_dlib(const Config& cfg) {
     upper = kLongTermTargetUpper, kDailyTargetUpper, static_cast<double>(kAggressivenessUpper);
     const std::vector<bool> is_integer_variable = {false, false, true};
 
+    const auto max_runtime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::duration<double>(result.time_budget_seconds));
+
     const auto best_eval = dlib::find_max_global(
         objective,
         lower,
         upper,
         is_integer_variable,
-        dlib::max_function_calls(static_cast<std::size_t>(std::max(1, cfg.optimization_budget))),
-        std::chrono::seconds(45),
+        dlib::max_function_calls(static_cast<std::size_t>(result.requested_evaluations)),
+        max_runtime,
         0.05);
+
+    result.elapsed_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started_at).count();
+    result.completed_requested_evaluations = result.evaluated_candidates >= result.requested_evaluations;
+    result.stopped_by_time_budget = !result.completed_requested_evaluations && result.elapsed_seconds + 1e-6 >= result.time_budget_seconds;
 
     if (!std::isfinite(result.best_score)) {
         const double lt = best_eval.x(0);
@@ -117,8 +112,15 @@ std::string optimization_result_to_json(const OptimizationResult& result) {
     os << "{\n";
     os << "  \"optimizer_backend\": \"" << result.backend_name << "\",\n";
     os << "  \"dlib_available\": " << (result.dlib_available ? "true" : "false") << ",\n";
-    os << "  \"objective\": \"" << result.objective << "\",\n";
+    os << "  \"objective_name\": \"" << result.objective_name << "\",\n";
+    os << "  \"requested_evaluations\": " << result.requested_evaluations << ",\n";
     os << "  \"evaluated_candidates\": " << result.evaluated_candidates << ",\n";
+    os << "  \"monte_carlo_sims_per_evaluation\": " << result.monte_carlo_sims_per_evaluation << ",\n";
+    os << "  \"total_monte_carlo_simulations_completed\": " << result.total_monte_carlo_simulations_completed << ",\n";
+    os << "  \"time_budget_seconds\": " << result.time_budget_seconds << ",\n";
+    os << "  \"elapsed_seconds\": " << result.elapsed_seconds << ",\n";
+    os << "  \"stopped_by_time_budget\": " << (result.stopped_by_time_budget ? "true" : "false") << ",\n";
+    os << "  \"completed_requested_evaluations\": " << (result.completed_requested_evaluations ? "true" : "false") << ",\n";
     os << "  \"best_score\": " << result.best_score << ",\n";
     os << "  \"best_parameters\": {\n";
     os << "    \"long_term_target_atr\": " << result.best_config.long_term_target_atr << ",\n";

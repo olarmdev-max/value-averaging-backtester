@@ -10,6 +10,11 @@ The repo now has:
 - Nix as the required development/runtime environment
 - high-level smoke tests with 60-second max timeout per test
 - a real `dlib`-backed optimization path
+- a fixed optimizer objective: `mean_total_return_pct / mean_max_drawdown_pct`
+- optimizer controls for:
+  - `num_simulations` (500 per evaluation)
+  - `optimization_budget` (100 requested evaluations)
+  - `optimization_time_budget_seconds` (for quick capped runs such as 30s)
 
 ## Key docs
 
@@ -44,6 +49,18 @@ python3 -m unittest tests.test_smoke -v
 ## CI
 
 GitHub Actions runs the same Nix-based smoke path and `nix build` on pushes/PRs.
+
+## Quick optimization run
+
+A ready-made 30-second config is included at:
+- `config/optimization_30s.json`
+
+Run it with:
+
+```bash
+nix develop -c ./build-test-nix/cpp_backtester optimize config/optimization_30s.json tmp_opt_30s
+cat tmp_opt_30s/optimization_results.json
+```
 
 ## Nix package build
 

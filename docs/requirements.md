@@ -71,7 +71,11 @@ The simulator should expose options for unresolved behavior instead of hardcodin
 ## Optimization requirements
 - tune parameters with a Bayesian optimization library
 - allow optimization over both numeric thresholds and discrete policy modes
-- make the objective configurable (examples: CAGR, Sharpe, max drawdown, terminal wealth, risk-adjusted return)
+- use a single fixed objective: `total_return_pct / max_drawdown_pct`
+- default optimizer regime should support:
+  - 500 Monte Carlo simulations per evaluation
+  - 100 requested evaluations
+  - a configurable time budget (for example 30-second quick runs)
 
 ## Suggested initial technical structure
 - C++ core engine

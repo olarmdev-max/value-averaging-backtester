@@ -10,8 +10,8 @@ struct Config {
     int num_days = 252;
     int atr_window = 14;
     int num_simulations = 500;
-    int optimization_budget = 12;
-    int optimization_mc_sims = 24;
+    int optimization_budget = 100;
+    double optimization_time_budget_seconds = 30.0;
 
     double start_price = 100.0;
     double mu = 0.08;
@@ -33,7 +33,6 @@ struct Config {
     bool one_buy_per_day_only = true;
     std::string fully_utilized_mode = "wait";
     std::string gap_handling_mode = "single_buy";
-    std::string objective = "mean_terminal_equity";
 };
 
 struct PriceBar {
@@ -94,6 +93,9 @@ struct McAggregate {
     double max_terminal_equity = 0.0;
     double mean_max_drawdown = 0.0;
     double positive_run_ratio = 0.0;
+    double mean_total_return_pct = 0.0;
+    double mean_max_drawdown_pct = 0.0;
+    double return_over_drawdown_ratio = 0.0;
 };
 
 struct OptimizationCandidate {
@@ -105,12 +107,19 @@ struct OptimizationCandidate {
 
 struct OptimizationResult {
     std::string backend_name;
-    std::string objective;
+    std::string objective_name;
+    int requested_evaluations = 0;
     int evaluated_candidates = 0;
+    int monte_carlo_sims_per_evaluation = 0;
+    int total_monte_carlo_simulations_completed = 0;
+    double time_budget_seconds = 0.0;
+    double elapsed_seconds = 0.0;
     double best_score = 0.0;
     Config best_config;
     std::vector<OptimizationCandidate> candidates;
     bool dlib_available = false;
+    bool stopped_by_time_budget = false;
+    bool completed_requested_evaluations = false;
 };
 
 }  // namespace cpp_backtester

@@ -53,7 +53,7 @@ Config load_config(const std::filesystem::path& path) {
     cfg.atr_window = extract_int(text, "atr_window", cfg.atr_window);
     cfg.num_simulations = extract_int(text, "num_simulations", cfg.num_simulations);
     cfg.optimization_budget = extract_int(text, "optimization_budget", cfg.optimization_budget);
-    cfg.optimization_mc_sims = extract_int(text, "optimization_mc_sims", cfg.optimization_mc_sims);
+    cfg.optimization_time_budget_seconds = extract_double(text, "optimization_time_budget_seconds", cfg.optimization_time_budget_seconds);
 
     cfg.start_price = extract_double(text, "start_price", cfg.start_price);
     cfg.mu = extract_double(text, "mu", cfg.mu);
@@ -75,7 +75,6 @@ Config load_config(const std::filesystem::path& path) {
     cfg.one_buy_per_day_only = extract_bool(text, "one_buy_per_day_only", cfg.one_buy_per_day_only);
     cfg.fully_utilized_mode = extract_string(text, "fully_utilized_mode", cfg.fully_utilized_mode);
     cfg.gap_handling_mode = extract_string(text, "gap_handling_mode", cfg.gap_handling_mode);
-    cfg.objective = extract_string(text, "objective", cfg.objective);
     return cfg;
 }
 
