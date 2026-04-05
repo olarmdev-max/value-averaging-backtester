@@ -1,0 +1,57 @@
+"""
+### Part 1: The High-Level Rules (What we CAN define)
+We can clearly define the algorithm's daily logical loop. Based on the video, the algorithm evaluates each allocation once a day and executes one of three primary actions based on a strict hierarchy:
+
+**Rule 1: The Long-Term "Reset" Check (Top Priority)**
+*   **Condition:** Does the current value of the shares exceed the baseline cost by the Long-Term Target % (e.g., +30%)?
+*   **Action:** If YES, execute a **SELL ALL** order.
+*   **Post-Action:** Move all funds to Cash, calculate profit, route profit based on retention settings (Taxes/Income), and set the new cost basis to zero. "Start over as if it were Day 1."
+
+**Rule 2: The Daily "Value Average" Check (Secondary Priority)**
+*   **Condition:** If Rule 1 is not met, did the fund's price grow enough to exceed the Daily Growth Target (e.g., +0.5%)?
+*   **Action:** If YES, execute a **SELL OVERAGE** order. Calculate the exact dollar amount that exceeds the target path, and sell only that many shares.
+*   **Post-Action:** Move the captured profit to Cash, route profit based on retention settings, and leave the remaining shares invested.
+
+**Rule 3: The Daily "Dollar Cost Average" Check (Default Action)**
+*   **Condition:** If neither Rule 1 nor Rule 2 is met (meaning the market is down, flat, or grew less than the daily target), and Cash Utilization is < 100%.
+*   **Action:** Execute an **INCREMENTAL BUY** order.
+*   **Post-Action:** Decrease available cash, increase share count, and update the Average Price per share.
+
+**Rule 4: Profit Routing (The Sweep)**
+*   After any Sell action, the captured profit is split:
+    *   *X%* routed to Taxes Retained (if applicable).
+    *   *Y%* routed to Profit Retained (for withdrawal).
+    *   *The remainder* is left in the cash pool to be automatically reinvested (compounded) in future Rule 3 buys.
+
+---
+
+### Part 2: The Corner Cases (What is MISSING)
+To actually build this algorithm, a quant developer would need answers to several critical edge cases and mathematical boundaries that the video completely ignores.
+
+**1. The "100% Utilization" Corner Case (Running out of cash)**
+*   *The Scenario:* A prolonged bear market causes the algorithm to execute Rule 3 (Incremental Buy) every day until cash drops to $0.00. The portfolio is 100% utilized, but the market keeps dropping.
+*   *Missing Info:* Does the algorithm simply do nothing and wait? Or does it have a "rebalancing" rule where it sells off other, better-performing allocations to free up cash to buy the deep dip?
+
+**2. The Dynamic Sizing Formula (How big is the buy?)**
+*   *The Scenario:* The market drops 1% on Monday, and 10% on Tuesday.
+*   *Missing Info:* Does the algorithm buy the exact same dollar amount on both days? Or does the algorithm dynamically size its purchases based on the severity of the dip? We know the "Aggressiveness" hyperparameter (1 through 4) changes the speed of deployment (represented by "Buys Left" on the dashboard), but the exact formula for Buy_Size = f(Cash, Aggressiveness, Dip_Severity) is hidden.
+
+**3. The "Wash Sale" Corner Case (Tax Implications)**
+*   *The Scenario:* The algorithm buys shares of TQQQ on Monday, the price drops on Tuesday (so it buys more), and then spikes on Wednesday (triggering a Rule 2 daily sell).
+*   *Missing Info:* In the United States, selling a security for a loss within 30 days of buying it triggers a "Wash Sale," complicating tax reporting. If the algorithm is constantly buying and selling the same 5 tickers on a daily basis, it is almost certainly generating wash sales. Does the algorithm track tax lots? Does it have logic to prevent selling at a loss just to capture a daily target? The video only mentions taxes regarding profits, ignoring the mechanics of losses.
+
+**4. Extreme Gap-Ups / Gap-Downs**
+*   *The Scenario:* A fund closes at $100. Overnight, extreme news causes the fund to open at $50 (a 50% gap down).
+*   *Missing Info:* Does the algorithm blow all its cash at once to "catch up" to its Value Averaging path? Or is it strictly limited to one predefined incremental buy per day, regardless of how massive the gap is?
+
+### Summary
+We have enough information to map out a basic flowchart of what the algorithm intends to do on a normal day. However, we lack the mathematical formulas for trade sizing and the defensive logic required to handle extreme market conditions, meaning we cannot define the corner cases.
+
+Project goals:
+- create a backend backtest and simulate this via c++, settings can in JSON
+- lets simulate all these parameters, and missing options too as options user can adjust them if needed via json
+- we can use Geometric Brownian Motion (GBM) with Jump-Diffusion as a synthetic stock price
+- we should select the parameters in ATR instead of percentages
+- we should have a monteCarlo simulation, each simulation run 500 sims
+- we should have a way to tune all the parameters using a library that can do Bayesian optimization
+"""
