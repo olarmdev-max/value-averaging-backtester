@@ -29,11 +29,47 @@ bool looks_like_header(const std::string& token) {
     return lower == "close";
 }
 
-std::vector<double> parse_close_values(const std::string& text, const std::string& path_string) {
+bool looks_like_date_header(const std::string& token) {
+    std::string lower;
+    lower.reserve(token.size());
+    for (unsigned char ch : token) {
+        lower.push_back(static_cast<char>(std::tolower(ch)));
+    }
+    return lower == "date";
+}
+
+bool looks_like_iso_date(const std::string& token) {
+    return token.size() == 10 &&
+        std::isdigit(static_cast<unsigned char>(token[0])) &&
+        std::isdigit(static_cast<unsigned char>(token[1])) &&
+        std::isdigit(static_cast<unsigned char>(token[2])) &&
+        std::isdigit(static_cast<unsigned char>(token[3])) &&
+        token[4] == '-' &&
+        std::isdigit(static_cast<unsigned char>(token[5])) &&
+        std::isdigit(static_cast<unsigned char>(token[6])) &&
+        token[7] == '-' &&
+        std::isdigit(static_cast<unsigned char>(token[8])) &&
+        std::isdigit(static_cast<unsigned char>(token[9]));
+}
+
+struct ParsedCloseSeries {
+    std::vector<double> closes;
+    std::vector<std::string> dates;
+};
+
+ParsedCloseSeries parse_close_values(const std::string& text, const std::string& path_string) {
+    enum class CsvMode {
+        kUnknown,
+        kCloseOnly,
+        kDateAndClose,
+    };
+
+    ParsedCloseSeries parsed;
     std::vector<double> closes;
     std::istringstream input(text);
     std::string line;
     bool first_non_empty_seen = false;
+    CsvMode mode = CsvMode::kUnknown;
 
     while (std::getline(input, line)) {
         line = trim(line);
@@ -48,16 +84,48 @@ std::vector<double> parse_close_values(const std::string& text, const std::strin
         }
         first_field = trim(first_field);
 
+        std::string second_field;
+        if (comma_pos != std::string::npos) {
+            const auto second_comma_pos = line.find(',', comma_pos + 1);
+            second_field = line.substr(comma_pos + 1, second_comma_pos == std::string::npos ? std::string::npos : second_comma_pos - comma_pos - 1);
+            second_field = trim(second_field);
+        }
+
         if (!first_non_empty_seen) {
             first_non_empty_seen = true;
-            if (looks_like_header(first_field)) {
+            if (looks_like_header(first_field) && second_field.empty()) {
+                mode = CsvMode::kCloseOnly;
+                continue;
+            }
+            if (looks_like_date_header(first_field) && looks_like_header(second_field)) {
+                mode = CsvMode::kDateAndClose;
                 continue;
             }
         }
 
+        if (mode == CsvMode::kUnknown) {
+            mode = (!second_field.empty() && looks_like_iso_date(first_field))
+                ? CsvMode::kDateAndClose
+                : CsvMode::kCloseOnly;
+        }
+
         try {
-            closes.push_back(std::stod(first_field));
+            if (mode == CsvMode::kDateAndClose) {
+                if (!looks_like_iso_date(first_field)) {
+                    throw std::runtime_error("Invalid ISO date in CSV: " + path_string + " -> '" + first_field + "'");
+                }
+                if (second_field.empty()) {
+                    throw std::runtime_error("Missing close value in dated CSV: " + path_string + " -> '" + line + "'");
+                }
+                parsed.dates.push_back(first_field);
+                closes.push_back(std::stod(second_field));
+            } else {
+                closes.push_back(std::stod(first_field));
+            }
         } catch (const std::exception&) {
+            if (mode == CsvMode::kDateAndClose) {
+                throw std::runtime_error("Invalid dated CSV row: " + path_string + " -> '" + line + "'");
+            }
             throw std::runtime_error("Invalid close value in CSV: " + path_string + " -> '" + first_field + "'");
         }
     }
@@ -66,19 +134,21 @@ std::vector<double> parse_close_values(const std::string& text, const std::strin
         throw std::runtime_error("No close values found in CSV: " + path_string);
     }
 
-    return closes;
+    parsed.closes = std::move(closes);
+    return parsed;
 }
 
 }  // namespace
 
 PriceSeries load_close_series_csv(const std::filesystem::path& path, int atr_window) {
     const std::string text = read_file(path);
-    const auto closes = parse_close_values(text, path.string());
+    const auto parsed = parse_close_values(text, path.string());
 
     PriceSeries series;
     series.name = path.stem().string();
     series.source_path = path.string();
-    series.bars = build_bars_from_closes(closes, atr_window);
+    series.dates = parsed.dates;
+    series.bars = build_bars_from_closes(parsed.closes, atr_window);
     return series;
 }
 

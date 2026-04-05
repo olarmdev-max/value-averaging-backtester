@@ -75,6 +75,15 @@ Config load_config(const std::filesystem::path& path) {
     cfg.one_buy_per_day_only = extract_bool(text, "one_buy_per_day_only", cfg.one_buy_per_day_only);
     cfg.fully_utilized_mode = extract_string(text, "fully_utilized_mode", cfg.fully_utilized_mode);
     cfg.gap_handling_mode = extract_string(text, "gap_handling_mode", cfg.gap_handling_mode);
+    cfg.rolling_window_months = extract_int(text, "rolling_window_months", cfg.rolling_window_months);
+    cfg.rolling_window_step_months = extract_int(text, "rolling_window_step_months", cfg.rolling_window_step_months);
+    cfg.rolling_candidate_pool_size = extract_int(text, "rolling_candidate_pool_size", cfg.rolling_candidate_pool_size);
+    cfg.rolling_max_passes = extract_int(text, "rolling_max_passes", cfg.rolling_max_passes);
+    cfg.rolling_worker_count = extract_int(text, "rolling_worker_count", cfg.rolling_worker_count);
+    cfg.rolling_total_time_budget_seconds = extract_double(
+        text,
+        "rolling_total_time_budget_seconds",
+        cfg.rolling_total_time_budget_seconds);
     return cfg;
 }
 

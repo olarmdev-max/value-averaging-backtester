@@ -19,6 +19,7 @@ add_library(cpp_backtester_core
     src/simulator.cpp
     src/monte_carlo.cpp
     src/optimizer.cpp
+    src/rolling_optimizer.cpp
 )
 
 target_include_directories(cpp_backtester_core
@@ -29,6 +30,9 @@ target_include_directories(cpp_backtester_core
 find_package(dlib REQUIRED)
 target_link_libraries(cpp_backtester_core PUBLIC dlib::dlib)
 target_compile_definitions(cpp_backtester_core PUBLIC CPP_BACKTESTER_HAS_DLIB=1)
+
+find_package(Threads REQUIRED)
+target_link_libraries(cpp_backtester_core PUBLIC Threads::Threads)
 
 find_package(Eigen3 QUIET)
 if (Eigen3_FOUND)

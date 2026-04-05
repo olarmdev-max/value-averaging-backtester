@@ -33,6 +33,12 @@ struct Config {
     bool one_buy_per_day_only = true;
     std::string fully_utilized_mode = "wait";
     std::string gap_handling_mode = "single_buy";
+    int rolling_window_months = 6;
+    int rolling_window_step_months = 1;
+    int rolling_candidate_pool_size = 36;
+    int rolling_max_passes = 0;
+    int rolling_worker_count = 0;
+    double rolling_total_time_budget_seconds = 30.0;
 };
 
 struct PriceBar {
@@ -48,6 +54,7 @@ struct PriceBar {
 struct PriceSeries {
     std::string name;
     std::string source_path;
+    std::vector<std::string> dates;
     std::vector<PriceBar> bars;
 };
 
@@ -136,6 +143,67 @@ struct OptimizationResult {
     bool dlib_available = false;
     bool stopped_by_time_budget = false;
     bool completed_requested_evaluations = false;
+};
+
+struct RollingWindowBest {
+    std::string window_label;
+    std::string window_start;
+    std::string window_end;
+    double long_term_target_atr = 0.0;
+    double daily_target_atr = 0.0;
+    int aggressiveness = 0;
+    double best_score = 0.0;
+    double best_mean_total_return_pct = 0.0;
+    double best_mean_cagr_pct = 0.0;
+    double best_mean_max_drawdown_pct = 0.0;
+};
+
+struct RollingReplayRow {
+    std::string window_label;
+    std::string window_start;
+    std::string window_end;
+    double mean_total_return_pct = 0.0;
+    double mean_cagr_pct = 0.0;
+    double mean_max_drawdown_pct = 0.0;
+    double cagr_over_drawdown_ratio = 0.0;
+};
+
+struct RollingPassSummary {
+    int pass_index = 0;
+    double elapsed_seconds = 0.0;
+    int evaluated_candidates_per_window = 0;
+    Config median_config;
+    double median_best_score = 0.0;
+    double median_best_mean_total_return_pct = 0.0;
+    double median_best_mean_cagr_pct = 0.0;
+    double median_best_mean_max_drawdown_pct = 0.0;
+    std::vector<RollingWindowBest> window_bests;
+};
+
+struct RollingOptimizationResult {
+    std::string objective_name;
+    std::string input_mode = "dated_input_files";
+    int input_file_count = 0;
+    std::string common_start;
+    std::string common_end;
+    int window_count = 0;
+    int window_months = 0;
+    int window_step_months = 0;
+    int candidate_pool_size = 0;
+    int worker_count = 0;
+    int max_passes = 0;
+    int passes_completed = 0;
+    int total_candidate_evaluations_completed = 0;
+    double total_time_budget_seconds = 0.0;
+    double elapsed_seconds_total = 0.0;
+    bool stopped_by_time_budget = false;
+    Config final_config;
+    double final_mean_total_return_pct = 0.0;
+    double final_mean_cagr_pct = 0.0;
+    double final_mean_max_drawdown_pct = 0.0;
+    double final_cagr_over_drawdown_ratio = 0.0;
+    std::vector<RollingPassSummary> pass_summaries;
+    std::vector<RollingReplayRow> replay_rows;
 };
 
 }  // namespace cpp_backtester

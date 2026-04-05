@@ -61,12 +61,14 @@ class SmokeTests(unittest.TestCase):
             REPO_ROOT / "include" / "cpp_backtester" / "simulator.hpp",
             REPO_ROOT / "include" / "cpp_backtester" / "monte_carlo.hpp",
             REPO_ROOT / "include" / "cpp_backtester" / "optimizer.hpp",
+            REPO_ROOT / "include" / "cpp_backtester" / "rolling_optimizer.hpp",
             REPO_ROOT / "src" / "config.cpp",
             REPO_ROOT / "src" / "price_generator.cpp",
             REPO_ROOT / "src" / "price_loader.cpp",
             REPO_ROOT / "src" / "simulator.cpp",
             REPO_ROOT / "src" / "monte_carlo.cpp",
             REPO_ROOT / "src" / "optimizer.cpp",
+            REPO_ROOT / "src" / "rolling_optimizer.cpp",
             REPO_ROOT / "docs" / "architecture.md",
             REPO_ROOT / "docs" / "price_file_schema.md",
             REPO_ROOT / "flake.nix",
@@ -174,6 +176,29 @@ class SmokeTests(unittest.TestCase):
                 results["total_price_file_evaluations_completed"],
                 results["evaluated_candidates"] * 2,
             )
+        finally:
+            shutil.rmtree(out_dir, ignore_errors=True)
+
+    def test_rolling_optimize_smoke(self):
+        files = [
+            FIXTURES_DIR / "dated_alpha.csv",
+            FIXTURES_DIR / "dated_beta.csv",
+        ]
+        out_dir = self.run_command("optimize-rolling", "smoke_rolling_optimization.json", files)
+        try:
+            results = json.loads((out_dir / "rolling_optimization_results.json").read_text())
+            self.assertEqual(results["input_mode"], "dated_input_files")
+            self.assertEqual(results["input_file_count"], 2)
+            self.assertGreaterEqual(results["window_count"], 2)
+            self.assertGreaterEqual(results["parallel_workers_used"], 1)
+            self.assertGreater(results["passes_completed"], 0)
+            self.assertEqual(
+                results["total_candidate_evaluations_completed"],
+                results["window_count"] * results["candidate_pool_size"] * results["passes_completed"],
+            )
+            self.assertIn("final_parameters", results)
+            self.assertIn("final_median_results", results)
+            self.assertEqual(len(results["replay_rows"]), results["window_count"])
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 

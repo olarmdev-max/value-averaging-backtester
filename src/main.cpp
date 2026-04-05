@@ -10,6 +10,7 @@
 #include "cpp_backtester/optimizer.hpp"
 #include "cpp_backtester/price_generator.hpp"
 #include "cpp_backtester/price_loader.hpp"
+#include "cpp_backtester/rolling_optimizer.hpp"
 #include "cpp_backtester/simulator.hpp"
 
 namespace fs = std::filesystem;
@@ -42,7 +43,7 @@ std::string sanitize_name(const std::string& name) {
 int main(int argc, char** argv) {
     try {
         if (argc < 4) {
-            std::cerr << "Usage: cpp_backtester <generate|simulate|monte-carlo|optimize> <config.json> <output_dir> [price_file.csv ...]\n";
+            std::cerr << "Usage: cpp_backtester <generate|simulate|monte-carlo|optimize|optimize-rolling> <config.json> <output_dir> [price_file.csv ...]\n";
             return 1;
         }
 
@@ -106,6 +107,12 @@ int main(int argc, char** argv) {
         if (command == "optimize") {
             const auto result = cpp_backtester::optimize_config(cfg, input_series);
             cpp_backtester::write_optimization_artifacts(out_dir, result);
+            return 0;
+        }
+
+        if (command == "optimize-rolling") {
+            const auto result = cpp_backtester::optimize_rolling_windows(cfg, input_series);
+            cpp_backtester::write_rolling_optimization_artifacts(out_dir, result);
             return 0;
         }
 

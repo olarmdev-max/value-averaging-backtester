@@ -9,6 +9,7 @@
 - `include/cpp_backtester/simulator.hpp` + `src/simulator.cpp` — strategy engine and simulation artifact writing
 - `include/cpp_backtester/monte_carlo.hpp` + `src/monte_carlo.cpp` — Monte Carlo aggregation
 - `include/cpp_backtester/optimizer.hpp` + `src/optimizer.cpp` — optimization backend abstraction
+- `include/cpp_backtester/rolling_optimizer.hpp` + `src/rolling_optimizer.cpp` — rolling-window pass controller with parallel window execution
 - `src/main.cpp` — thin CLI only
 
 ## Why this split
