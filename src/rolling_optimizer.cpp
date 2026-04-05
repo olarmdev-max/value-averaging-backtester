@@ -19,10 +19,14 @@
 namespace cpp_backtester {
 namespace {
 
-constexpr double kLongTermTargetLower = 1.0;
-constexpr double kLongTermTargetUpper = 8.0;
-constexpr double kDailyTargetLower = 0.25;
-constexpr double kDailyTargetUpper = 3.0;
+constexpr double kBaseRateLower = 0.0001;
+constexpr double kBaseRateUpper = 0.01;
+constexpr double kKSensitivityLower = 0.0;
+constexpr double kKSensitivityUpper = 5.0;
+constexpr double kResetThresholdLower = 1.5;
+constexpr double kResetThresholdUpper = 4.0;
+constexpr double kOverageThresholdLower = 1.05;
+constexpr double kOverageThresholdUpper = 2.0;
 constexpr int kAggressivenessLower = 1;
 constexpr int kAggressivenessUpper = 4;
 constexpr const char* kObjectiveName = "mean_cagr_pct / mean_max_drawdown_pct";
@@ -125,32 +129,43 @@ int median_int_round_half_up(std::vector<int> values) {
     return std::clamp(static_cast<int>(std::floor(median_double(std::move(as_double)) + 0.5)), kAggressivenessLower, kAggressivenessUpper);
 }
 
-Config make_trial_config(const Config& base, double long_term_target_atr, double daily_target_atr, int aggressiveness) {
+Config make_trial_config(const Config& base, double base_rate, double k_atr_sensitivity,
+                         double long_term_reset_threshold, double daily_overage_threshold, int aggressiveness) {
     Config trial = base;
-    trial.long_term_target_atr = std::clamp(long_term_target_atr, kLongTermTargetLower, kLongTermTargetUpper);
-    trial.daily_target_atr = std::clamp(daily_target_atr, kDailyTargetLower, kDailyTargetUpper);
+    trial.base_rate = std::clamp(base_rate, kBaseRateLower, kBaseRateUpper);
+    trial.k_atr_sensitivity = std::clamp(k_atr_sensitivity, kKSensitivityLower, kKSensitivityUpper);
+    trial.long_term_reset_threshold = std::clamp(long_term_reset_threshold, kResetThresholdLower, kResetThresholdUpper);
+    trial.daily_overage_threshold = std::clamp(daily_overage_threshold, kOverageThresholdLower, kOverageThresholdUpper);
     trial.aggressiveness = std::clamp(aggressiveness, kAggressivenessLower, kAggressivenessUpper);
     return trial;
 }
 
 Config median_config_from_window_bests(const Config& base, const std::vector<RollingWindowBest>& window_bests) {
-    std::vector<double> long_terms;
-    std::vector<double> daily_targets;
+    std::vector<double> base_rates;
+    std::vector<double> k_values;
+    std::vector<double> reset_thresholds;
+    std::vector<double> overage_thresholds;
     std::vector<int> aggressiveness_values;
-    long_terms.reserve(window_bests.size());
-    daily_targets.reserve(window_bests.size());
+    base_rates.reserve(window_bests.size());
+    k_values.reserve(window_bests.size());
+    reset_thresholds.reserve(window_bests.size());
+    overage_thresholds.reserve(window_bests.size());
     aggressiveness_values.reserve(window_bests.size());
 
     for (const auto& best : window_bests) {
-        long_terms.push_back(best.long_term_target_atr);
-        daily_targets.push_back(best.daily_target_atr);
+        base_rates.push_back(best.base_rate);
+        k_values.push_back(best.k_atr_sensitivity);
+        reset_thresholds.push_back(best.long_term_reset_threshold);
+        overage_thresholds.push_back(best.daily_overage_threshold);
         aggressiveness_values.push_back(best.aggressiveness);
     }
 
     return make_trial_config(
         base,
-        median_double(std::move(long_terms)),
-        median_double(std::move(daily_targets)),
+        median_double(std::move(base_rates)),
+        median_double(std::move(k_values)),
+        median_double(std::move(reset_thresholds)),
+        median_double(std::move(overage_thresholds)),
         median_int_round_half_up(std::move(aggressiveness_values)));
 }
 
@@ -280,38 +295,54 @@ std::vector<OptimizationCandidate> build_candidate_pool(
     std::vector<OptimizationCandidate> candidates;
     candidates.reserve(static_cast<std::size_t>(candidate_pool_size));
     candidates.push_back(OptimizationCandidate{
-        center.long_term_target_atr,
-        center.daily_target_atr,
+        center.base_rate,
+        center.k_atr_sensitivity,
+        center.long_term_reset_threshold,
+        center.daily_overage_threshold,
         center.aggressiveness,
         0.0});
 
-    std::uniform_real_distribution<double> long_term_dist(kLongTermTargetLower, kLongTermTargetUpper);
-    std::uniform_real_distribution<double> daily_dist(kDailyTargetLower, kDailyTargetUpper);
+    std::uniform_real_distribution<double> base_rate_dist(kBaseRateLower, kBaseRateUpper);
+    std::uniform_real_distribution<double> k_dist(kKSensitivityLower, kKSensitivityUpper);
+    std::uniform_real_distribution<double> reset_dist(kResetThresholdLower, kResetThresholdUpper);
+    std::uniform_real_distribution<double> overage_dist(kOverageThresholdLower, kOverageThresholdUpper);
     std::uniform_int_distribution<int> aggressiveness_dist(kAggressivenessLower, kAggressivenessUpper);
     std::uniform_int_distribution<int> delta_aggressiveness_dist(-1, 1);
 
     for (int i = 1; i < candidate_pool_size; ++i) {
         if (pass_index == 1) {
             candidates.push_back(OptimizationCandidate{
-                long_term_dist(rng),
-                daily_dist(rng),
+                base_rate_dist(rng),
+                k_dist(rng),
+                reset_dist(rng),
+                overage_dist(rng),
                 aggressiveness_dist(rng),
                 0.0});
             continue;
         }
 
-        const double long_radius = 1.5 / static_cast<double>(pass_index - 1);
-        const double daily_radius = 0.6 / static_cast<double>(pass_index - 1);
-        std::uniform_real_distribution<double> long_local_dist(
-            std::max(kLongTermTargetLower, center.long_term_target_atr - long_radius),
-            std::min(kLongTermTargetUpper, center.long_term_target_atr + long_radius));
-        std::uniform_real_distribution<double> daily_local_dist(
-            std::max(kDailyTargetLower, center.daily_target_atr - daily_radius),
-            std::min(kDailyTargetUpper, center.daily_target_atr + daily_radius));
+        const double br_radius = 0.002 / static_cast<double>(pass_index - 1);
+        const double k_radius = 1.0 / static_cast<double>(pass_index - 1);
+        const double reset_radius = 0.5 / static_cast<double>(pass_index - 1);
+        const double overage_radius = 0.2 / static_cast<double>(pass_index - 1);
+        std::uniform_real_distribution<double> br_local(
+            std::max(kBaseRateLower, center.base_rate - br_radius),
+            std::min(kBaseRateUpper, center.base_rate + br_radius));
+        std::uniform_real_distribution<double> k_local(
+            std::max(kKSensitivityLower, center.k_atr_sensitivity - k_radius),
+            std::min(kKSensitivityUpper, center.k_atr_sensitivity + k_radius));
+        std::uniform_real_distribution<double> reset_local(
+            std::max(kResetThresholdLower, center.long_term_reset_threshold - reset_radius),
+            std::min(kResetThresholdUpper, center.long_term_reset_threshold + reset_radius));
+        std::uniform_real_distribution<double> overage_local(
+            std::max(kOverageThresholdLower, center.daily_overage_threshold - overage_radius),
+            std::min(kOverageThresholdUpper, center.daily_overage_threshold + overage_radius));
 
         candidates.push_back(OptimizationCandidate{
-            long_local_dist(rng),
-            daily_local_dist(rng),
+            br_local(rng),
+            k_local(rng),
+            reset_local(rng),
+            overage_local(rng),
             std::clamp(center.aggressiveness + delta_aggressiveness_dist(rng), kAggressivenessLower, kAggressivenessUpper),
             0.0});
     }
@@ -379,15 +410,19 @@ RollingWindowBest evaluate_window_candidates(
     for (const auto& candidate : candidates) {
         const Config trial = make_trial_config(
             base_cfg,
-            candidate.long_term_target_atr,
-            candidate.daily_target_atr,
+            candidate.base_rate,
+            candidate.k_atr_sensitivity,
+            candidate.long_term_reset_threshold,
+            candidate.daily_overage_threshold,
             candidate.aggressiveness);
         const auto aggregate = run_price_series_batch(trial, window.series_list);
         const double score = aggregate.cagr_over_drawdown_ratio;
 
         if (score > best.best_score) {
-            best.long_term_target_atr = trial.long_term_target_atr;
-            best.daily_target_atr = trial.daily_target_atr;
+            best.base_rate = trial.base_rate;
+            best.k_atr_sensitivity = trial.k_atr_sensitivity;
+            best.long_term_reset_threshold = trial.long_term_reset_threshold;
+            best.daily_overage_threshold = trial.daily_overage_threshold;
             best.aggressiveness = trial.aggressiveness;
             best.best_score = score;
             best.best_mean_total_return_pct = aggregate.mean_total_return_pct;
@@ -420,8 +455,10 @@ std::string params_to_json(const Config& cfg, int indent_spaces) {
     const std::string next_indent(static_cast<std::size_t>(indent_spaces + 2), ' ');
     std::ostringstream os;
     os << indent << "{\n";
-    os << next_indent << "\"long_term_target_atr\": " << cfg.long_term_target_atr << ",\n";
-    os << next_indent << "\"daily_target_atr\": " << cfg.daily_target_atr << ",\n";
+    os << next_indent << "\"base_rate\": " << cfg.base_rate << ",\n";
+    os << next_indent << "\"k_atr_sensitivity\": " << cfg.k_atr_sensitivity << ",\n";
+    os << next_indent << "\"long_term_reset_threshold\": " << cfg.long_term_reset_threshold << ",\n";
+    os << next_indent << "\"daily_overage_threshold\": " << cfg.daily_overage_threshold << ",\n";
     os << next_indent << "\"aggressiveness\": " << cfg.aggressiveness << "\n";
     os << indent << "}";
     return os.str();
@@ -598,8 +635,10 @@ std::string rolling_optimization_result_to_json(const RollingOptimizationResult&
             os << "          \"window_start\": \"" << best.window_start << "\",\n";
             os << "          \"window_end\": \"" << best.window_end << "\",\n";
             os << "          \"best_parameters\": {\n";
-            os << "            \"long_term_target_atr\": " << best.long_term_target_atr << ",\n";
-            os << "            \"daily_target_atr\": " << best.daily_target_atr << ",\n";
+            os << "            \"base_rate\": " << best.base_rate << ",\n";
+            os << "            \"k_atr_sensitivity\": " << best.k_atr_sensitivity << ",\n";
+            os << "            \"long_term_reset_threshold\": " << best.long_term_reset_threshold << ",\n";
+            os << "            \"daily_overage_threshold\": " << best.daily_overage_threshold << ",\n";
             os << "            \"aggressiveness\": " << best.aggressiveness << "\n";
             os << "          },\n";
             os << "          \"best_score\": " << best.best_score << ",\n";

@@ -21,18 +21,21 @@ struct Config {
     double jump_std = 0.08;
 
     double initial_cash = 10000.0;
-    double long_term_target_atr = 4.0;
-    double daily_target_atr = 1.0;
+
+    // Path model parameters (PRD: ATR-Scaled Target-Path Strategy)
+    double base_rate = 0.001;
+    double k_atr_sensitivity = 1.0;
+    double long_term_reset_threshold = 2.0;
+    double daily_overage_threshold = 1.3;
     double cash_utilization_limit = 0.95;
     int aggressiveness = 2;
-    double base_buy_fraction = 0.05;
-    std::string buy_sizing_mode = "dynamic";
-    double taxes_retained_pct = 0.25;
-    double profit_retained_pct = 0.15;
+    double agg_fraction_1 = 0.25;
+    double agg_fraction_2 = 0.50;
+    double agg_fraction_3 = 0.75;
+    double agg_fraction_4 = 1.00;
+    double taxes_retained_pct = 0.0;
+    double profit_retained_pct = 0.0;
     bool allow_sell_at_loss = false;
-    bool one_buy_per_day_only = true;
-    std::string fully_utilized_mode = "wait";
-    std::string gap_handling_mode = "single_buy";
     int rolling_window_months = 6;
     int rolling_window_step_months = 1;
     int rolling_candidate_pool_size = 36;
@@ -115,8 +118,10 @@ struct McAggregate {
 };
 
 struct OptimizationCandidate {
-    double long_term_target_atr = 0.0;
-    double daily_target_atr = 0.0;
+    double base_rate = 0.0;
+    double k_atr_sensitivity = 0.0;
+    double long_term_reset_threshold = 0.0;
+    double daily_overage_threshold = 0.0;
     int aggressiveness = 0;
     double score = 0.0;
 };
@@ -149,8 +154,10 @@ struct RollingWindowBest {
     std::string window_label;
     std::string window_start;
     std::string window_end;
-    double long_term_target_atr = 0.0;
-    double daily_target_atr = 0.0;
+    double base_rate = 0.0;
+    double k_atr_sensitivity = 0.0;
+    double long_term_reset_threshold = 0.0;
+    double daily_overage_threshold = 0.0;
     int aggressiveness = 0;
     double best_score = 0.0;
     double best_mean_total_return_pct = 0.0;

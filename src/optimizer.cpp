@@ -15,19 +15,26 @@
 namespace cpp_backtester {
 namespace {
 
-constexpr double kLongTermTargetLower = 1.0;
-constexpr double kLongTermTargetUpper = 8.0;
-constexpr double kDailyTargetLower = 0.25;
-constexpr double kDailyTargetUpper = 3.0;
+constexpr double kBaseRateLower = 0.0001;
+constexpr double kBaseRateUpper = 0.01;
+constexpr double kKSensitivityLower = 0.0;
+constexpr double kKSensitivityUpper = 5.0;
+constexpr double kResetThresholdLower = 1.5;
+constexpr double kResetThresholdUpper = 4.0;
+constexpr double kOverageThresholdLower = 1.05;
+constexpr double kOverageThresholdUpper = 2.0;
 constexpr int kAggressivenessLower = 1;
 constexpr int kAggressivenessUpper = 4;
 constexpr const char* kObjectiveName = "mean_cagr_pct / mean_max_drawdown_pct";
 
-Config make_trial_config(const Config& base, double long_term_target_atr, double daily_target_atr, int aggressiveness) {
+Config make_trial_config(const Config& base, double base_rate, double k_atr_sensitivity,
+                         double long_term_reset_threshold, double daily_overage_threshold, int aggressiveness) {
     Config trial = base;
-    trial.long_term_target_atr = long_term_target_atr;
-    trial.daily_target_atr = daily_target_atr;
-    trial.aggressiveness = aggressiveness;
+    trial.base_rate = std::clamp(base_rate, kBaseRateLower, kBaseRateUpper);
+    trial.k_atr_sensitivity = std::clamp(k_atr_sensitivity, kKSensitivityLower, kKSensitivityUpper);
+    trial.long_term_reset_threshold = std::clamp(long_term_reset_threshold, kResetThresholdLower, kResetThresholdUpper);
+    trial.daily_overage_threshold = std::clamp(daily_overage_threshold, kOverageThresholdLower, kOverageThresholdUpper);
+    trial.aggressiveness = std::clamp(aggressiveness, kAggressivenessLower, kAggressivenessUpper);
     return trial;
 }
 
@@ -47,16 +54,20 @@ OptimizationResult optimize_with_dlib(const Config& cfg, const std::vector<Price
 
     const auto started_at = std::chrono::steady_clock::now();
 
-    auto objective = [&](double long_term_target_atr, double daily_target_atr, double aggressiveness_continuous) {
-        const double clamped_lt = std::clamp(long_term_target_atr, kLongTermTargetLower, kLongTermTargetUpper);
-        const double clamped_dt = std::clamp(daily_target_atr, kDailyTargetLower, kDailyTargetUpper);
+    auto objective = [&](double base_rate, double k_atr_sensitivity,
+                         double long_term_reset_threshold, double daily_overage_threshold,
+                         double aggressiveness_continuous) {
+        const double clamped_br = std::clamp(base_rate, kBaseRateLower, kBaseRateUpper);
+        const double clamped_k = std::clamp(k_atr_sensitivity, kKSensitivityLower, kKSensitivityUpper);
+        const double clamped_rt = std::clamp(long_term_reset_threshold, kResetThresholdLower, kResetThresholdUpper);
+        const double clamped_ot = std::clamp(daily_overage_threshold, kOverageThresholdLower, kOverageThresholdUpper);
         const int aggressiveness = std::clamp(static_cast<int>(std::llround(aggressiveness_continuous)), kAggressivenessLower, kAggressivenessUpper);
 
-        const Config trial = make_trial_config(cfg, clamped_lt, clamped_dt, aggressiveness);
+        const Config trial = make_trial_config(cfg, clamped_br, clamped_k, clamped_rt, clamped_ot, aggressiveness);
         const auto mc = input_series.empty() ? run_monte_carlo(trial) : run_price_series_batch(trial, input_series);
         const double score = mc.cagr_over_drawdown_ratio;
 
-        result.candidates.push_back(OptimizationCandidate{clamped_lt, clamped_dt, aggressiveness, score});
+        result.candidates.push_back(OptimizationCandidate{clamped_br, clamped_k, clamped_rt, clamped_ot, aggressiveness, score});
         ++result.evaluated_candidates;
         result.total_monte_carlo_simulations_completed = result.evaluated_candidates * result.monte_carlo_sims_per_evaluation;
         result.total_price_file_evaluations_completed = result.evaluated_candidates * result.price_files_per_evaluation;
@@ -70,11 +81,11 @@ OptimizationResult optimize_with_dlib(const Config& cfg, const std::vector<Price
         return score;
     };
 
-    dlib::matrix<double, 0, 1> lower(3);
-    dlib::matrix<double, 0, 1> upper(3);
-    lower = kLongTermTargetLower, kDailyTargetLower, static_cast<double>(kAggressivenessLower);
-    upper = kLongTermTargetUpper, kDailyTargetUpper, static_cast<double>(kAggressivenessUpper);
-    const std::vector<bool> is_integer_variable = {false, false, true};
+    dlib::matrix<double, 0, 1> lower(5);
+    dlib::matrix<double, 0, 1> upper(5);
+    lower = kBaseRateLower, kKSensitivityLower, kResetThresholdLower, kOverageThresholdLower, static_cast<double>(kAggressivenessLower);
+    upper = kBaseRateUpper, kKSensitivityUpper, kResetThresholdUpper, kOverageThresholdUpper, static_cast<double>(kAggressivenessUpper);
+    const std::vector<bool> is_integer_variable = {false, false, false, false, true};
 
     const auto max_runtime = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::duration<double>(result.time_budget_seconds));
@@ -93,10 +104,12 @@ OptimizationResult optimize_with_dlib(const Config& cfg, const std::vector<Price
     result.stopped_by_time_budget = !result.completed_requested_evaluations && result.elapsed_seconds + 1e-6 >= result.time_budget_seconds;
 
     if (!std::isfinite(result.best_score)) {
-        const double lt = best_eval.x(0);
-        const double dt = best_eval.x(1);
-        const int aggressiveness = std::clamp(static_cast<int>(std::llround(best_eval.x(2))), kAggressivenessLower, kAggressivenessUpper);
-        result.best_config = make_trial_config(cfg, lt, dt, aggressiveness);
+        const double br = best_eval.x(0);
+        const double k = best_eval.x(1);
+        const double rt = best_eval.x(2);
+        const double ot = best_eval.x(3);
+        const int aggressiveness = std::clamp(static_cast<int>(std::llround(best_eval.x(4))), kAggressivenessLower, kAggressivenessUpper);
+        result.best_config = make_trial_config(cfg, br, k, rt, ot, aggressiveness);
         result.best_score = best_eval.y;
     }
 
@@ -137,15 +150,19 @@ std::string optimization_result_to_json(const OptimizationResult& result) {
     os << "  \"best_mean_cagr_pct\": " << result.best_mean_cagr_pct << ",\n";
     os << "  \"best_mean_max_drawdown_pct\": " << result.best_mean_max_drawdown_pct << ",\n";
     os << "  \"best_parameters\": {\n";
-    os << "    \"long_term_target_atr\": " << result.best_config.long_term_target_atr << ",\n";
-    os << "    \"daily_target_atr\": " << result.best_config.daily_target_atr << ",\n";
+    os << "    \"base_rate\": " << result.best_config.base_rate << ",\n";
+    os << "    \"k_atr_sensitivity\": " << result.best_config.k_atr_sensitivity << ",\n";
+    os << "    \"long_term_reset_threshold\": " << result.best_config.long_term_reset_threshold << ",\n";
+    os << "    \"daily_overage_threshold\": " << result.best_config.daily_overage_threshold << ",\n";
     os << "    \"aggressiveness\": " << result.best_config.aggressiveness << "\n";
     os << "  },\n";
     os << "  \"candidates\": [\n";
     for (std::size_t i = 0; i < result.candidates.size(); ++i) {
         const auto& candidate = result.candidates[i];
-        os << "    {\"long_term_target_atr\": " << candidate.long_term_target_atr
-           << ", \"daily_target_atr\": " << candidate.daily_target_atr
+        os << "    {\"base_rate\": " << candidate.base_rate
+           << ", \"k_atr_sensitivity\": " << candidate.k_atr_sensitivity
+           << ", \"long_term_reset_threshold\": " << candidate.long_term_reset_threshold
+           << ", \"daily_overage_threshold\": " << candidate.daily_overage_threshold
            << ", \"aggressiveness\": " << candidate.aggressiveness
            << ", \"score\": " << candidate.score << "}";
         if (i + 1 != result.candidates.size()) {

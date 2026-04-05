@@ -63,18 +63,19 @@ Config load_config(const std::filesystem::path& path) {
     cfg.jump_std = extract_double(text, "jump_std", cfg.jump_std);
 
     cfg.initial_cash = extract_double(text, "initial_cash", cfg.initial_cash);
-    cfg.long_term_target_atr = extract_double(text, "long_term_target_atr", cfg.long_term_target_atr);
-    cfg.daily_target_atr = extract_double(text, "daily_target_atr", cfg.daily_target_atr);
+    cfg.base_rate = extract_double(text, "base_rate", cfg.base_rate);
+    cfg.k_atr_sensitivity = extract_double(text, "k_atr_sensitivity", cfg.k_atr_sensitivity);
+    cfg.long_term_reset_threshold = extract_double(text, "long_term_reset_threshold", cfg.long_term_reset_threshold);
+    cfg.daily_overage_threshold = extract_double(text, "daily_overage_threshold", cfg.daily_overage_threshold);
     cfg.cash_utilization_limit = extract_double(text, "cash_utilization_limit", cfg.cash_utilization_limit);
     cfg.aggressiveness = extract_int(text, "aggressiveness", cfg.aggressiveness);
-    cfg.base_buy_fraction = extract_double(text, "base_buy_fraction", cfg.base_buy_fraction);
-    cfg.buy_sizing_mode = extract_string(text, "buy_sizing_mode", cfg.buy_sizing_mode);
+    cfg.agg_fraction_1 = extract_double(text, "agg_fraction_1", cfg.agg_fraction_1);
+    cfg.agg_fraction_2 = extract_double(text, "agg_fraction_2", cfg.agg_fraction_2);
+    cfg.agg_fraction_3 = extract_double(text, "agg_fraction_3", cfg.agg_fraction_3);
+    cfg.agg_fraction_4 = extract_double(text, "agg_fraction_4", cfg.agg_fraction_4);
     cfg.taxes_retained_pct = extract_double(text, "taxes_retained_pct", cfg.taxes_retained_pct);
     cfg.profit_retained_pct = extract_double(text, "profit_retained_pct", cfg.profit_retained_pct);
     cfg.allow_sell_at_loss = extract_bool(text, "allow_sell_at_loss", cfg.allow_sell_at_loss);
-    cfg.one_buy_per_day_only = extract_bool(text, "one_buy_per_day_only", cfg.one_buy_per_day_only);
-    cfg.fully_utilized_mode = extract_string(text, "fully_utilized_mode", cfg.fully_utilized_mode);
-    cfg.gap_handling_mode = extract_string(text, "gap_handling_mode", cfg.gap_handling_mode);
     cfg.rolling_window_months = extract_int(text, "rolling_window_months", cfg.rolling_window_months);
     cfg.rolling_window_step_months = extract_int(text, "rolling_window_step_months", cfg.rolling_window_step_months);
     cfg.rolling_candidate_pool_size = extract_int(text, "rolling_candidate_pool_size", cfg.rolling_candidate_pool_size);

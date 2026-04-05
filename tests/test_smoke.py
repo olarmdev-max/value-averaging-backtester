@@ -94,8 +94,9 @@ class SmokeTests(unittest.TestCase):
             summary = json.loads((out_dir / "summary.json").read_text())
             self.assertTrue((out_dir / "trade_log.csv").exists())
             self.assertTrue((out_dir / "equity.csv").exists())
-            self.assertTrue(summary["used_atr_thresholds"])
-            self.assertTrue(summary["used_jump_diffusion"])
+            self.assertEqual(summary["strategy_model"], "target_path")
+            self.assertIn("base_rate", summary)
+            self.assertIn("k_atr_sensitivity", summary)
             self.assertGreater(summary["buy_count"] + summary["sell_count"], 0)
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
@@ -119,9 +120,12 @@ class SmokeTests(unittest.TestCase):
         out_dir = self.run_command("simulate", "smoke_policy_switches.json")
         try:
             summary = json.loads((out_dir / "summary.json").read_text())
-            self.assertEqual(summary["buy_sizing_mode"], "fixed")
-            self.assertEqual(summary["fully_utilized_mode"], "rebalance_placeholder")
-            self.assertEqual(summary["gap_handling_mode"], "catch_up")
+            self.assertEqual(summary["strategy_model"], "target_path")
+            self.assertAlmostEqual(summary["base_rate"], 0.002, places=3)
+            self.assertAlmostEqual(summary["k_atr_sensitivity"], 2.5, places=1)
+            self.assertAlmostEqual(summary["long_term_reset_threshold"], 3.0, places=1)
+            self.assertAlmostEqual(summary["daily_overage_threshold"], 1.5, places=1)
+            self.assertEqual(summary["aggressiveness"], 4)
             self.assertTrue(summary["allow_sell_at_loss"])
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
@@ -156,7 +160,12 @@ class SmokeTests(unittest.TestCase):
                 results["evaluated_candidates"] * 500,
             )
             self.assertIn("best_mean_cagr_pct", results)
-            self.assertIn("best_parameters", results)
+            best_params = results["best_parameters"]
+            self.assertIn("base_rate", best_params)
+            self.assertIn("k_atr_sensitivity", best_params)
+            self.assertIn("long_term_reset_threshold", best_params)
+            self.assertIn("daily_overage_threshold", best_params)
+            self.assertIn("aggressiveness", best_params)
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
 
@@ -197,6 +206,12 @@ class SmokeTests(unittest.TestCase):
                 results["window_count"] * results["candidate_pool_size"] * results["passes_completed"],
             )
             self.assertIn("final_parameters", results)
+            final_params = results["final_parameters"]
+            self.assertIn("base_rate", final_params)
+            self.assertIn("k_atr_sensitivity", final_params)
+            self.assertIn("long_term_reset_threshold", final_params)
+            self.assertIn("daily_overage_threshold", final_params)
+            self.assertIn("aggressiveness", final_params)
             self.assertIn("final_median_results", results)
             self.assertEqual(len(results["replay_rows"]), results["window_count"])
         finally:
