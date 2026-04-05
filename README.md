@@ -1,4 +1,4 @@
-# cpp-backtester
+# value-averaging-backtester
 
 C++ backtesting/simulation project for a value-averaging style trading algorithm extracted from the provided Google Doc.
 
